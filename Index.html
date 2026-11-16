@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>訪問日程表メーカー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap">
+<style>
+:root{
+  /* 方針: 介護記録の緑を基調に、紙の日程表をそのまま画面へ。色で区別するのは時間帯（早朝・夜間・深夜）だけ */
+  --bg:#f2f4f1;
+  --surface:#ffffff;
+  --surface-2:#f6f8f5;
+  --ink:#1b2624;
+  --muted:#5a6966;
+  --line:#d5dcd8;
+  --accent:#16705a;
+  --accent-soft:#e2f0eb;
+  --on-accent:#ffffff;
+  --early:#985f00; --early-soft:#fbefd6;
+  --night:#3a50bd; --night-soft:#e5e9fb;
+  --late:#2f2c74;  --late-soft:#e4e2f4;
+  --warn:#a14710;  --warn-soft:#fcecdf;
+  --bad:#b3261e;   --bad-soft:#fbe5e3;
+  --info:#24639b;  --info-soft:#e3edf8;
+  --font:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo","Noto Sans JP",system-ui,sans-serif;
+  --mono:"BIZ UDGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo","Noto Sans JP",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121817; --surface:#1b2321; --surface-2:#212b29; --ink:#e5ece9; --muted:#9db0aa; --line:#33413d;
+    --accent:#4cbf9a; --accent-soft:#1d3a31; --on-accent:#0b1915;
+    --early:#e8b24a; --early-soft:#3a2e15; --night:#9aa9f6; --night-soft:#252c4f; --late:#c3bff8; --late-soft:#2c2950;
+    --warn:#f2a36c; --warn-soft:#3c291b; --bad:#f4908a; --bad-soft:#3f2321; --info:#8fbfeb; --info-soft:#1d3045;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121817; --surface:#1b2321; --surface-2:#212b29; --ink:#e5ece9; --muted:#9db0aa; --line:#33413d;
+  --accent:#4cbf9a; --accent-soft:#1d3a31; --on-accent:#0b1915;
+  --early:#e8b24a; --early-soft:#3a2e15; --night:#9aa9f6; --night-soft:#252c4f; --late:#c3bff8; --late-soft:#2c2950;
+  --warn:#f2a36c; --warn-soft:#3c291b; --bad:#f4908a; --bad-soft:#3f2321; --info:#8fbfeb; --info-soft:#1d3045;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 var(--font);min-height:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--accent)}
+h1,h2,h3{text-wrap:balance}
+.px{padding-left:max(16px, calc((100% - 1120px) / 2));padding-right:max(16px, calc((100% - 1120px) / 2))}
+:focus-visible{outline:3px solid color-mix(in srgb, var(--accent) 60%, transparent);outline-offset:2px}
+
+/* ヘッダー・タブ */
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:14px;padding-bottom:10px}
+.brand{display:flex;gap:10px;align-items:center;min-width:0}
+.brand svg{width:38px;height:38px;flex:none}
+.brand h1{margin:0;font-size:19px;line-height:1.25;letter-spacing:.02em}
+.brand p{margin:0;font-size:12px;color:var(--muted);line-height:1.4}
+.status{flex:none;font-size:12px;line-height:1;padding:7px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.ok i{background:var(--accent)}
+.status.busy i{background:var(--early)}
+.status.err i{background:var(--bad)}
+nav.tabs{position:sticky;top:0;z-index:20;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;background:var(--bg);border-bottom:1px solid var(--line);padding-top:6px;padding-bottom:6px}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs a{flex:none;padding:8px 14px;border-radius:10px;color:var(--muted);text-decoration:none;font-weight:700;font-size:14px;white-space:nowrap}
+nav.tabs a:hover{background:var(--surface)}
+nav.tabs a[aria-current="page"]{background:var(--accent);color:var(--on-accent)}
+main{padding-top:16px;padding-bottom:80px}
+
+/* 部品 */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.stack{display:grid;gap:14px}
+.stack,.data-grid,.groups,.checks,.opt-list,.m-stack,.ed{grid-template-columns:minmax(0,1fr)}
+.h{font-size:15px;margin:0 0 10px;letter-spacing:.03em}
+.hint,.meta{font-size:13px;color:var(--muted);margin:8px 0 0}
+.muted{color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.sp{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:700;font-size:14px;cursor:pointer;text-decoration:none;color:var(--ink);white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb, var(--bad) 40%, var(--line))}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.icon-btn{width:42px;height:42px;flex:none;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:20px;line-height:1;cursor:pointer;display:inline-grid;place-items:center;color:var(--ink);padding:0}
+.icon-btn[disabled]{opacity:.35;cursor:default}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:8px;font-weight:700;font-size:13px;color:var(--muted);cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.14)}
+.tag{font-size:11.5px;padding:0 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface);line-height:1.7;white-space:nowrap}
+.tag-two{border-color:var(--night);color:var(--night)}
+.tag-off{border-color:var(--bad);color:var(--bad)}
+.tag-extra{border-color:var(--accent);color:var(--accent)}
+.tag-shift{background:var(--accent-soft);border-color:transparent;color:var(--accent);font-weight:700}
+.band-pill{font-size:12px;font-weight:700;padding:1px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.band-early{background:var(--early-soft)!important;color:var(--early)!important}
+.band-night{background:var(--night-soft)!important;color:var(--night)!important}
+.band-late{background:var(--late-soft)!important;color:var(--late)!important}
+.empty{color:var(--muted);font-size:14px;margin:8px 0}
+.loading{display:flex;gap:10px;align-items:center;color:var(--muted)}
+.spin{width:18px;height:18px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.spin{animation:none}}
+
+/* 日程表タブ */
+.day-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between}
+.date-nav{display:flex;align-items:center;gap:8px}
+.date-box{display:flex;flex-direction:column;align-items:center;min-width:10.5em}
+.date-big{font-size:22px;font-weight:700;letter-spacing:.02em;line-height:1.25;white-space:nowrap}
+.date-box input{font-size:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted);padding:2px 6px;margin-top:2px}
+.quick-days{display:flex;gap:6px}
+.quick-days button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:700;cursor:pointer;min-height:34px}
+.day-actions{display:flex;gap:8px;flex-wrap:wrap}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:560px){.kpis.k4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:9px 12px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;min-width:0}
+.kpi span{font-size:12px;color:var(--muted);width:100%;line-height:1.3}
+.kpi b{font-size:24px;font-family:var(--mono);font-variant-numeric:tabular-nums;line-height:1.15}
+.kpi small{font-size:12px;color:var(--muted)}
+@media (max-width:480px){
+  .kpi{padding:8px 10px}
+  .kpi b{font-size:20px}
+  .brand p{display:none}
+  nav.tabs a{padding:8px 11px}
+  nav.tabs .l{display:none}
+}
+@media (min-width:481px){ nav.tabs .s{display:none} }
+.kpi.warn{border-color:color-mix(in srgb, var(--warn) 45%, var(--line));background:var(--warn-soft)}
+.kpi.warn b{color:var(--warn)}
+.kpi.info{border-color:color-mix(in srgb, var(--info) 40%, var(--line));background:var(--info-soft)}
+.checks{display:grid;gap:8px;margin-bottom:14px}
+.check-card{border:1px solid var(--line);border-left:5px solid var(--muted);border-radius:10px;padding:9px 12px;background:var(--surface)}
+.check-card.lv-bad{border-left-color:var(--bad);background:var(--bad-soft)}
+.check-card.lv-warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.check-card.lv-info{border-left-color:var(--info);background:var(--info-soft)}
+.check-card b{display:block;font-size:14px}
+.check-card p{margin:2px 0 0;font-size:13.5px}
+.view-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sheet-wrap{border-radius:14px;background:color-mix(in srgb, var(--ink) 9%, var(--bg));overflow:hidden}
+.sheet-wrap.zoom{overflow-x:auto}
+.sheet-sizer{position:relative}
+.sheet-scale{position:absolute;top:0;left:0;transform-origin:0 0}
+.paper{width:297mm;height:210mm;padding:8mm;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18),0 8px 24px rgba(0,0,0,.08)}
+.paper td[data-vid]{cursor:pointer}
+.paper td[data-vid]:hover{background:#eef6f3}
+.paper td.flag-warn{background:#fde3cc}
+.paper td.flag-bad{background:#f9d4d0}
+.shift-card{padding:4px 14px 6px;margin-bottom:12px}
+.shift-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:10px 2px 6px;border-bottom:2px solid var(--ink)}
+.shift-head h3{margin:0;font-size:17px}
+.shift-head span{font-size:13px;color:var(--muted)}
+
+/* 訪問の行 */
+.vlist{list-style:none;margin:0;padding:0}
+.vrow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"t n u" "t s u";gap:2px 12px;align-items:center;padding:9px 4px;border-top:1px solid var(--line);cursor:pointer}
+.vrow:first-child{border-top:0}
+.vrow:hover{background:var(--surface-2)}
+.vrow[data-act=""]{cursor:default}
+.vt{grid-area:t;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:15px;line-height:1.25;min-width:7.3em}
+.vt i{font-style:normal;color:var(--muted);margin:0 1px}
+.vt small{display:block;font-size:11px;color:var(--muted)}
+.vn{grid-area:n;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;min-width:0}
+.vn b{font-size:16px;font-weight:400}
+.vn b.em{font-weight:700}
+.vs{grid-area:s;font-size:12.5px;color:var(--muted);justify-self:start;padding:0 8px;border-radius:6px;background:var(--surface-2);line-height:1.7}
+.vu{grid-area:u;text-align:right;font-family:var(--mono);font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.vu small{font-size:11px;font-weight:400;color:var(--muted);margin-left:2px;font-family:var(--font)}
+.vrow.is-off{opacity:.55}
+.vrow.is-off .vt{text-decoration:line-through}
+
+/* 訪問タブ */
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar input[type=search]{flex:1;min-width:140px;max-width:280px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);min-height:42px}
+.groups{display:grid;gap:12px;margin-top:12px}
+.pcard{padding:6px 14px 8px}
+.phead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 2px;border-bottom:2px solid var(--ink)}
+.phead h3{margin:0;font-size:18px}
+.phead select{font-size:13px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);min-height:34px}
+.phead .pweek{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.empty-card h3{margin:0 0 6px;font-size:17px}
+.empty-card p{margin:0 0 12px}
+
+/* 単位計算タブ */
+.calc-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:14px}
+@media (max-width:760px){.calc-grid{grid-template-columns:1fr}}
+.time-row{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);font-weight:700;min-width:0}
+.fld input,.fld select{font-size:16px;color:var(--ink);font-weight:400;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);min-height:46px;min-width:0;width:100%}
+.fld input[type=time]{font-family:var(--mono);font-size:20px;width:7.4em}
+.to{padding-bottom:12px;color:var(--muted)}
+.dur-in{display:flex;align-items:center;gap:4px}
+.dur-in input{width:4.6em!important;font-family:var(--mono);font-size:20px!important}
+.dur-in i{font-style:normal;color:var(--ink);font-weight:400;font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.chip-btn{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 13px;font-size:13px;font-weight:700;cursor:pointer;min-height:36px;color:var(--ink)}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+.opt-list{display:grid;gap:9px}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;flex-wrap:wrap}
+.check input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);flex:none;margin:0}
+.small-num{width:4.6em;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-family:var(--mono);font-size:16px;min-height:38px}
+.result .res-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.res-cat{font-size:13px;color:var(--muted)}
+.res-name{font-size:20px;font-weight:700;margin-top:8px;line-height:1.35}
+.res-units{display:flex;align-items:baseline;gap:6px;margin:2px 0 4px}
+.res-units b{font-family:var(--mono);font-size:58px;line-height:1.05;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.res-units span{font-size:16px;font-weight:700}
+.res-yen{font-size:13px;color:var(--muted)}
+.res-err{color:var(--bad);font-weight:700}
+.steps{margin:10px 0 0;padding-left:1.4em;font-size:13.5px;display:grid;gap:3px}
+.notes{margin:10px 0 0;padding:8px 12px 8px 1.7em;background:var(--info-soft);border-radius:10px;font-size:13px}
+.ruler{margin-top:14px}
+.ruler-bar{position:relative;display:flex;height:26px;border:1px solid var(--line);border-radius:8px}
+.rseg{display:grid;place-items:center;font-size:11.5px;font-weight:700;color:var(--muted);border-left:1px solid var(--line);background:var(--surface-2);min-width:0;overflow:hidden}
+.rseg:first-child{border-left:0;border-radius:7px 0 0 7px}
+.rseg:last-child{border-radius:0 7px 7px 0}
+.rseg.on{background:var(--accent-soft);color:var(--accent)}
+.ruler-mk{position:absolute;top:-6px;bottom:-6px;width:3px;background:var(--accent);border-radius:2px;transform:translateX(-50%)}
+.ticks{position:relative;height:18px;font-size:10.5px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+.ticks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.ticks span.l{transform:none}
+.ticks span.r{transform:translateX(-100%)}
+.bandbar{position:relative;display:flex;height:34px;border-radius:9px;overflow:visible;margin-top:22px}
+.bseg{display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--muted);min-width:0;overflow:hidden;white-space:nowrap}
+.bseg:first-child{border-radius:9px 0 0 9px}
+.bseg:last-child{border-radius:0 9px 9px 0}
+.bmark{position:absolute;top:-22px;bottom:-4px;width:2px;background:var(--ink);transform:translateX(-50%)}
+.bmark span{position:absolute;top:0;left:50%;transform:translateX(-50%);font-size:11px;font-family:var(--mono);background:var(--ink);color:var(--bg);padding:1px 6px;border-radius:6px;white-space:nowrap}
+.legend{display:flex;gap:6px 14px;flex-wrap:wrap;font-size:12.5px;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+.table-wrap{overflow-x:auto}
+table.qt,table.mt{border-collapse:collapse;width:100%;font-size:13.5px}
+table.qt{min-width:600px}
+table.mt{min-width:620px}
+table.qt th,table.qt td,table.mt th,table.mt td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.qt th:first-child,table.qt td:first-child,table.mt th:first-child,table.mt td:first-child{text-align:left}
+table.qt thead th,table.mt thead th{font-size:12px;color:var(--muted);font-weight:700;border-bottom:2px solid var(--ink);vertical-align:bottom}
+table.qt td,table.mt td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+table.qt td:first-child{font-family:var(--font);font-weight:700}
+table.qt td small{display:block;font-family:var(--font);font-weight:400;color:var(--muted);font-size:11px}
+table.qt td.hit{background:var(--accent);color:var(--on-accent);font-weight:700}
+table.mt tfoot td{font-weight:700;border-top:2px solid var(--ink);border-bottom:0}
+.pct{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pct span{font-family:var(--mono);font-size:13px;min-width:3.2em;text-align:right}
+.pbar{position:relative;height:8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;width:110px}
+.pbar i{position:absolute;inset:0 auto 0 0;background:var(--accent)}
+.pbar.warn i{background:var(--warn)}
+.pbar.bad i{background:var(--bad)}
+.warn-n{display:inline-block;min-width:1.8em;padding:0 6px;border-radius:999px;background:var(--warn-soft);color:var(--warn);font-weight:700;text-align:center}
+.rules ul{margin:0;padding-left:1.3em;display:grid;gap:5px;font-size:14px}
+.rules .src{font-size:12.5px;color:var(--muted);margin-top:10px}
+.month-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.month-title{margin:0;font-size:21px;min-width:6.5em;text-align:center}
+
+/* 設定タブ */
+.shift-list{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:6px}
+.shift-list li{display:flex;align-items:center;gap:6px}
+.shift-list input{flex:1;min-width:0;max-width:220px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);min-height:42px;font-weight:700}
+.shift-list .cnt{font-size:12.5px;color:var(--muted);min-width:4em}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:12px}
+.data-grid{display:grid;gap:14px}
+
+/* モーダル */
+.modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center}
+.modal[hidden]{display:none}
+.m-back{position:absolute;inset:0;background:rgba(10,20,18,.45)}
+.m-box{position:relative;width:min(580px, calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;background:var(--surface);border-radius:16px;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,.3);outline:none}
+@media (max-width:600px){.modal{place-items:end center}.m-box{width:100%;max-height:92%;border-radius:16px 16px 0 0}}
+.m-title{margin:0 0 4px;font-size:18px;padding-right:20px}
+.m-sub{margin:0 0 12px;color:var(--muted);font-size:13px}
+.m-actions{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+.m-stack{display:grid;gap:8px;margin-top:12px}
+.ed{display:grid;gap:12px}
+.days{border:0;padding:0;margin:0}
+.days legend{font-size:12.5px;color:var(--muted);font-weight:700;margin-bottom:4px;padding:0}
+.day-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.day-tg{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface);font-weight:700;cursor:pointer;color:var(--ink)}
+.day-tg[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.day-tg.all{width:auto;border-radius:999px;padding:0 14px}
+.pv{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap}
+.pv-name{font-weight:700}
+.pv-dur{font-size:13px;color:var(--muted)}
+.pv-u{margin-left:auto;font-family:var(--mono);font-size:24px;font-weight:700;color:var(--accent)}
+.pv-u small{font-size:12px;color:var(--muted);font-family:var(--font);margin-left:2px}
+.pv-err{color:var(--bad);font-weight:700}
+textarea.paste{width:100%;min-height:160px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--surface);font-family:var(--mono);font-size:12px}
+
+#toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,16px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;max-width:calc(100% - 32px)}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion: reduce){#toast{transition:none}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+#print-root{display:none}
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  html,body{background:#fff!important}
+  body>*{display:none!important}
+  body>#print-root{display:block!important}
+  #print-root .sheet{break-after:page;page-break-after:always}
+  #print-root .sheet:last-child{break-after:auto;page-break-after:auto}
+}
+</style>
+</head>
+<body>
+<header class="top px">
+  <div class="brand">
+    <svg viewBox="0 0 38 38" aria-hidden="true">
+      <rect x="2" y="5" width="34" height="31" rx="8" fill="var(--accent)"/>
+      <rect x="6" y="13" width="26" height="19" rx="4" fill="var(--surface)"/>
+      <path d="M11 3v6M27 3v6" stroke="var(--accent)" stroke-width="3.2" stroke-linecap="round"/>
+      <path d="M10 19h6M10 24h6M22 19h6M22 24h6M10 29h6" stroke="var(--accent)" stroke-width="2.2" stroke-linecap="round" opacity=".75"/>
+    </svg>
+    <div>
+      <h1>訪問日程表メーカー</h1>
+      <p>有料・訪問介護の単位計算と日程表づくり</p>
+    </div>
+  </div>
+  <div class="status" id="status" role="status"><i></i>準備中</div>
+</header>
+<nav class="tabs px" aria-label="画面の切り替え">
+  <a href="#day" data-tab="day">日程表</a>
+  <a href="#visits" data-tab="visits"><span class="l">訪問の登録</span><span class="s">登録</span></a>
+  <a href="#calc" data-tab="calc">単位計算</a>
+  <a href="#month" data-tab="month"><span class="l">月の集計</span><span class="s">集計</span></a>
+  <a href="#data" data-tab="data"><span class="l">設定・データ</span><span class="s">設定</span></a>
+</nav>
+<main id="main" class="px"></main>
+<div id="modal" class="modal" hidden>
+  <div class="m-back" data-act="modal-close"></div>
+  <div class="m-box" role="dialog" aria-modal="true" aria-label="入力" tabindex="-1" id="m-box"><div id="m-body"></div></div>
+</div>
+<div id="toast" aria-live="polite"></div>
+<div id="print-root"></div>
+<noscript><p style="padding:16px">このツールは JavaScript を使います。ブラウザの設定で有効にしてください。</p></noscript>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= 定数 ================= */
+var WD = ['日','月','火','水','木','金','土'];
+var WEEK = [1,2,3,4,5,6,0];
+var RATES_R6 = {b01:163, b1:244, b2:387, b3:567, step:82, lifeAdd:65, s2:179, s3:220};
+var RATE_FIELDS = [
+  ['b01','身体介護 20分未満'],
+  ['b1','身体介護 20分以上30分未満'],
+  ['b2','身体介護 30分以上1時間未満'],
+  ['b3','身体介護 1時間以上1時間30分未満'],
+  ['step','1時間30分以上：30分増すごとに'],
+  ['lifeAdd','身体介護に続く生活援助（25分ごと・3回まで）'],
+  ['s2','生活援助 20分以上45分未満'],
+  ['s3','生活援助 45分以上']
+];
+var LIMITS = {1:16765, 2:19705, 3:27048, 4:30938, 5:36217};
+var DEFAULT_SHIFTS = ['明','夜勤','早1','遅','日'];
+var STORE_KEY = 'houmon-nittei-v1';
+var DOC_PATH = 'houmon/state';
+var TABS = ['day','visits','calc','month','data'];
+var BANDS = {
+  day:  {key:'day',  label:'日中', suffix:'',  num:1, den:1, pct:100, range:'8:00〜18:00'},
+  early:{key:'early',label:'早朝', suffix:'夜', num:5, den:4, pct:125, range:'6:00〜8:00'},
+  night:{key:'night',label:'夜間', suffix:'夜', num:5, den:4, pct:125, range:'18:00〜22:00'},
+  late: {key:'late', label:'深夜', suffix:'深', num:3, den:2, pct:150, range:'22:00〜翌6:00'}
+};
+
+/* 印刷用シート（画面のプレビューと印刷ファイルで共通） */
+var SHEET_FONT = '"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo","Noto Sans JP",sans-serif';
+var SHEET_MONO = '"BIZ UDGothic","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo","Noto Sans JP",monospace';
+var SHEET_CSS = [
+'.sheet{--k:1;--nf:4.3mm;--tf:4.4mm;width:281mm;height:194mm;background:#fff;color:#111;font-family:'+SHEET_FONT+';box-sizing:border-box;overflow:hidden;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+'.sheet *{box-sizing:border-box}',
+'.sheet .sh-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:end;height:11mm;padding:0 1mm 1.8mm}',
+'.sheet .sh-date{font-size:4.8mm;letter-spacing:.04em;white-space:nowrap}',
+'.sheet .sh-title{font-size:5.6mm;font-weight:700;letter-spacing:.35em;padding-left:.35em;white-space:nowrap}',
+'.sheet .sh-right{display:flex;gap:4mm;justify-content:flex-end;align-items:flex-end;font-size:3.4mm;white-space:nowrap}',
+'.sheet table.blk{width:100%;table-layout:fixed;border-collapse:collapse;border:.55mm solid #111;margin-top:calc(2.2mm * var(--k))}',
+'.sheet table.blk:first-of-type{margin-top:0}',
+'.sheet col.c-lab{width:13mm}',
+'.sheet td,.sheet th{border-left:.25mm solid #111;padding:0 .9mm;overflow:hidden;white-space:nowrap;font-weight:400;line-height:1.1}',
+'.sheet tr.r-hour>*{height:calc(5.2mm * var(--k));font-size:calc(3.3mm * var(--k));text-align:right;border-bottom:.45mm solid #111;font-family:'+SHEET_MONO+'}',
+'.sheet tr.r-hour>th{text-align:center;font-family:'+SHEET_FONT+';border-left:0}',
+'.sheet th.lab{font-size:calc(5mm * var(--k));font-weight:700;text-align:center;vertical-align:middle;white-space:normal;line-height:1.15;border-left:0}',
+'.sheet th.lab small{display:block;font-size:calc(2.6mm * var(--k));font-weight:400}',
+'.sheet tr.r-name>td{height:calc(7.6mm * var(--k));font-size:calc(var(--nf) * var(--k));text-align:left;border-bottom:.6mm dashed #111;vertical-align:bottom;padding-bottom:calc(.7mm * var(--k))}',
+'.sheet tr.r-name>td.b{font-weight:700}',
+'.sheet tr.r-time>td{height:calc(6.4mm * var(--k));font-size:calc(var(--tf) * var(--k));text-align:right;border-bottom:.25mm dotted #111;font-family:'+SHEET_MONO+';font-variant-numeric:tabular-nums}',
+'.sheet tr.r-note>td{height:calc(5mm * var(--k));font-size:calc(3mm * var(--k));text-align:left}',
+'.sheet tr.r-units>td{height:calc(4.6mm * var(--k));font-size:calc(2.9mm * var(--k));text-align:right;border-top:.25mm dotted #111;font-family:'+SHEET_MONO+'}',
+'.sheet tr.r-units>td em{font-style:normal;float:left;font-size:calc(2.3mm * var(--k));padding-top:.3mm}'
+].join('\n');
+
+/* ================= 状態 ================= */
+var state = null;          // 読み込み前は null
+var mode = 'local';        // 'local'（この端末） | 'cloud'（ツールに保存）
+var readOnly = false;
+var localOk = true;
+var statusKind = '';
+var cloud = {ref:null, lastKey:null, saving:false, again:false, timer:null, dirty:false, slow:false, failed:false};
+var ui = {
+  tab:'day', date:null, view:'sheet', zoom:false, vg:'person', query:'', month:null,
+  calc:{start:'22:10', end:'22:30', two:false, life:0, freq:false}
+};
+var modalState = null;
+
+/* ================= 小道具 ================= */
+function $(s, r){ return (r||document).querySelector(s); }
+function pad(n){ return String(n).padStart(2,'0'); }
+function clamp(n,a,b){ return Math.min(b, Math.max(a, n)); }
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function parseDate(s){ var p=s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+function dateStr(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function addDays(s,n){ var d=parseDate(s); d.setDate(d.getDate()+n); return dateStr(d); }
+function toMin(t){
+  if (typeof t!=='string') return NaN;
+  var m=/^(\d{1,2}):(\d{2})/.exec(t.trim()); if(!m) return NaN;
+  var h=+m[1], mi=+m[2]; if(h>23||mi>59) return NaN; return h*60+mi;
+}
+function hm(min){ min=((min%1440)+1440)%1440; return Math.floor(min/60)+':'+pad(min%60); }
+function hhmm(min){ min=((min%1440)+1440)%1440; return pad(Math.floor(min/60))+':'+pad(min%60); }
+function durLabel(m){ var h=Math.floor(m/60), r=m%60; return h ? (r ? h+'時間'+r+'分' : h+'時間') : r+'分'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function num(n){ return Number(n).toLocaleString('ja-JP'); }
+function jpDate(s){ var d=parseDate(s); return (d.getMonth()+1)+'月'+d.getDate()+'日（'+WD[d.getDay()]+'）'; }
+function uid(){ return 'v'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+function debounce(fn,ms){ var t; return function(){ clearTimeout(t); t=setTimeout(fn,ms); }; }
+function stable(o){
+  if (Array.isArray(o)) return '['+o.map(stable).join(',')+']';
+  if (o && typeof o==='object') return '{'+Object.keys(o).sort().filter(function(k){return o[k]!==undefined;}).map(function(k){ return JSON.stringify(k)+':'+stable(o[k]); }).join(',')+'}';
+  return JSON.stringify(o);
+}
+function fmtRaw(x){ return Number.isInteger(x) ? num(x) : x.toLocaleString('ja-JP',{maximumFractionDigits:2}); }
+function byName(a,b){ return a.localeCompare(b,'ja'); }
+function toast(msg){
+  var t=$('#toast'); if(!t) return; t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(function(){ t.classList.remove('show'); }, 2600);
+}
+
+/* ================= データの整え ================= */
+function normTime(t){ var m=toMin(t); return isNaN(m) ? null : hhmm(m); }
+function normVisit(v){
+  if (!v || typeof v!=='object') return null;
+  var start=normTime(v.start), end=normTime(v.end);
+  if (!start || !end) return null;
+  var days = Array.isArray(v.days) ? v.days.map(Number).filter(function(d){ return d>=0 && d<=6; }) : [0,1,2,3,4,5,6];
+  days = days.filter(function(d,i){ return days.indexOf(d)===i; }).sort();
+  return {
+    id: (typeof v.id==='string' && v.id) ? v.id.slice(0,60) : uid(),
+    name: String(v.name||'').trim().slice(0,30) || '（名前なし）',
+    start:start, end:end,
+    shift: String(v.shift||'').trim().slice(0,20),
+    days: days,
+    two: !!v.two,
+    life: clamp(Math.floor(+v.life||0),0,600),
+    freq: !!v.freq,
+    bold: !!v.bold,
+    memo: String(v.memo||'').slice(0,30),
+    active: v.active!==false
+  };
+}
+function normalize(raw){
+  var r = (raw && typeof raw==='object') ? raw : {};
+  var shifts = Array.isArray(r.shifts) ? r.shifts.map(function(s){ return String(s).trim().slice(0,20); }).filter(Boolean) : [];
+  shifts = shifts.filter(function(s,i){ return shifts.indexOf(s)===i; });
+  var st = {
+    version: 1,
+    shifts: shifts.length ? shifts : DEFAULT_SHIFTS.slice(),
+    visits: Array.isArray(r.visits) ? r.visits.map(normVisit).filter(Boolean) : [],
+    people: {},
+    overrides: {},
+    print: Object.assign({cols:18, showEmpty:true, showDaily:false, showUnits:false, title:'訪問日程表', facility:''}, (r.print && typeof r.print==='object') ? r.print : {}),
+    rates: Object.assign({}, RATES_R6, (r.rates && typeof r.rates==='object') ? r.rates : {}),
+    yen: (typeof r.yen==='number' && r.yen>0) ? r.yen : null,
+    updatedAt: typeof r.updatedAt==='string' ? r.updatedAt : null
+  };
+  Object.keys(RATES_R6).forEach(function(k){ var n=Number(st.rates[k]); st.rates[k] = (isFinite(n) && n>=0) ? Math.round(n) : RATES_R6[k]; });
+  Object.keys(st.rates).forEach(function(k){ if(!(k in RATES_R6)) delete st.rates[k]; });
+  st.print.cols = clamp(Math.round(+st.print.cols||18), 8, 30);
+  st.print.showEmpty = st.print.showEmpty!==false;
+  st.print.showDaily = !!st.print.showDaily;
+  st.print.showUnits = !!st.print.showUnits;
+  st.print.title = String(st.print.title==null?'訪問日程表':st.print.title).slice(0,30);
+  st.print.facility = String(st.print.facility||'').slice(0,40);
+  var ppl = (r.people && typeof r.people==='object') ? r.people : {};
+  Object.keys(ppl).forEach(function(n){ var p=ppl[n]; var care = p && LIMITS[p.care] ? +p.care : null; st.people[n] = {care:care}; });
+  var ov = (r.overrides && typeof r.overrides==='object') ? r.overrides : {};
+  Object.keys(ov).forEach(function(d){
+    var o=ov[d]; if(!/^\d{4}-\d{2}-\d{2}$/.test(d) || !o || typeof o!=='object') return;
+    st.overrides[d] = {
+      off: Array.isArray(o.off) ? o.off.filter(function(x){ return typeof x==='string'; }) : [],
+      add: Array.isArray(o.add) ? o.add.map(normVisit).filter(Boolean) : []
+    };
+  });
+  return st;
+}
+
+/* ================= 単位の計算 ================= */
+function bandOf(min){
+  var m=((min%1440)+1440)%1440;
+  if (m>=1320 || m<360) return BANDS.late;
+  if (m>=1080) return BANDS.night;
+  if (m<480) return BANDS.early;
+  return BANDS.day;
+}
+function surchargeMinutes(s,dur){ var c=0; for(var i=0;i<dur;i++){ if(bandOf(s+i).key!=='day') c++; } return c; }
+
+function calc(v, R){
+  R = R || (state && state.rates) || RATES_R6;
+  var s=toMin(v.start), e=toMin(v.end);
+  if (isNaN(s) || isNaN(e)) return {ok:false, error:'開始と終了の時刻を入れてください'};
+  var dur=e-s; if (dur<=0) dur+=1440;
+  var life=clamp(Math.floor(+v.life||0),0,dur);
+  var body=dur-life;
+  var band=bandOf(s);
+  var notes=[], steps=[];
+  var base, name, cat, kind, bodyKey='', bn='', lifeLv=0, bodyUnits=0, lifeUnits=0;
+  if (body<=0){
+    kind='life';
+    if (life<20) return {ok:false, dur:dur, error:'生活援助は20分以上から算定します'};
+    if (life<45){ base=R.s2; name='生活援助2'; cat='生活援助 20分以上45分未満'; bodyKey='s2'; bn='生2'; }
+    else { base=R.s3; name='生活援助3'; cat='生活援助 45分以上'; bodyKey='s3'; bn='生3'; }
+    bodyUnits=base;
+    steps.push('所要時間 <b>'+dur+'分</b>（生活援助のみ）→ '+esc(cat)+'：<b>'+num(base)+'</b>単位');
+  } else {
+    kind='body';
+    var bc;
+    if (body<20){ bodyUnits=R.b01; bn=v.freq?'02':'01'; bc='身体介護 20分未満'+(v.freq?'（頻回の訪問）':''); bodyKey='01'; }
+    else if (body<30){ bodyUnits=R.b1; bn='1'; bc='身体介護 20分以上30分未満'; bodyKey='1'; }
+    else if (body<60){ bodyUnits=R.b2; bn='2'; bc='身体介護 30分以上1時間未満'; bodyKey='2'; }
+    else if (body<90){ bodyUnits=R.b3; bn='3'; bc='身体介護 1時間以上1時間30分未満'; bodyKey='3'; }
+    else { var k=Math.floor((body-60)/30); bodyUnits=R.b3+R.step*k; bn=String(3+k); bc='身体介護 '+durLabel(60+30*k)+'以上'+durLabel(90+30*k)+'未満'; bodyKey=bn; }
+    if (life>=20) lifeLv=Math.min(3, 1+Math.floor((life-20)/25));
+    lifeUnits=R.lifeAdd*lifeLv;
+    base=bodyUnits+lifeUnits;
+    if (lifeLv){
+      name='身体'+bn+'生活'+lifeLv;
+      cat=bc+'＋生活援助'+['','20分以上','45分以上','70分以上'][lifeLv];
+      if (body<20) notes.push('20分未満の身体介護に続けて生活援助を算定できるのは、緊急時訪問介護加算を算定する場合だけです。');
+    } else {
+      name='身体介護'+bn; cat=bc;
+      if (life>0) notes.push('生活援助が'+life+'分（20分未満）なので、生活援助の分は加算されません。');
+    }
+    steps.push('所要時間 <b>'+dur+'分</b>'+(life?'（身体 '+body+'分＋生活援助 '+life+'分）':'')+' → '+esc(cat)+'：<b>'+num(bodyUnits)+'</b>'+(lifeUnits?' ＋ '+num(lifeUnits):'')+'単位');
+    if (!life && (body===20 || body===30 || body===60 || body===90)) notes.push('ちょうど'+durLabel(body)+'は「'+durLabel(body)+'以上」の区分に入ります。');
+  }
+  var u=base;
+  if (v.two){ var u2=u*2; steps.push('2人で訪問：'+num(u)+' × 200% ＝ <b>'+num(u2)+'</b>'); u=u2; }
+  if (band.key!=='day'){
+    var raw=u*band.num/band.den, r=Math.round(raw);
+    steps.push('開始 '+hm(s)+' は'+band.label+'（'+band.range+'）：'+num(u)+' × '+band.pct+'% ＝ '+fmtRaw(raw)+(raw!==r?' → 四捨五入で <b>'+num(r)+'</b>':''));
+    u=r;
+    var sm=surchargeMinutes(s,dur);
+    if (sm*2<dur) notes.push('加算の時間帯にかかるのは'+sm+'分だけです（全体'+dur+'分）。加算の時間帯にかかる時間がごくわずかな場合は、加算できません。');
+  } else {
+    steps.push('開始 '+hm(s)+' は日中（8:00〜18:00）：時間帯の加算なし');
+  }
+  name += (v.two?'・2人':'') + (band.suffix?'・'+band.suffix:'');
+  return {ok:true, dur:dur, body:body, life:life, base:base, units:u, name:name, cat:cat, band:band, s:s, steps:steps, notes:notes, kind:kind, bodyKey:bodyKey, bn:bn, lifeLv:lifeLv, two:!!v.two};
+}
+function shortCode(c){
+  if (!c.ok) return '—';
+  var s = c.kind==='life' ? c.bn : c.bn + (c.lifeLv ? '生'+c.lifeLv : '');
+  if (c.two) s += '×2';
+  if (c.band.suffix) s += c.band.suffix;
+  return s;
+}
+function daysLabel(days){
+  var set={}; days.forEach(function(d){ set[d]=1; });
+  var n=Object.keys(set).length;
+  if (n===7) return '毎日';
+  if (n===0) return '曜日なし';
+  var inc=WEEK.filter(function(d){ return set[d]; }).map(function(d){ return WD[d]; }).join('');
+  var exc=WEEK.filter(function(d){ return !set[d]; }).map(function(d){ return WD[d]; }).join('');
+  return n>=4 ? exc+'×' : inc;
+}
+function noteText(v){
+  var parts=[];
+  if (v._extra) parts.push('臨時');
+  else { var dl=daysLabel(v.days); if (dl!=='毎日' || state.print.showDaily) parts.push(dl); }
+  if (v.two) parts.push('2人');
+  if (v.memo) parts.push(v.memo);
+  return parts.join(' ');
+}
+
+/* ================= その日の訪問・チェック ================= */
+function visitsOn(ds, includeOff){
+  var wd=parseDate(ds).getDay();
+  var ov=state.overrides[ds] || {off:[], add:[]};
+  var out=[];
+  state.visits.forEach(function(v){
+    if (v.active===false || v.days.indexOf(wd)<0) return;
+    var off=ov.off.indexOf(v.id)>=0;
+    if (off && !includeOff) return;
+    out.push(off ? Object.assign({}, v, {_off:true}) : v);
+  });
+  ov.add.forEach(function(a){ out.push(Object.assign({}, a, {_extra:true})); });
+  out.sort(function(a,b){ return (toMin(a.start)-toMin(b.start)) || byName(a.name,b.name); });
+  return out;
+}
+
+function checksFor(ds){
+  var items=[];
+  [[-1,-1440],[0,0],[1,1440]].forEach(function(p){
+    var d=addDays(ds,p[0]);
+    visitsOn(d).forEach(function(v){
+      var c=calc(v); if(!c.ok) return;
+      var s=toMin(v.start)+p[1];
+      items.push({v:v, c:c, d:d, s:s, e:s+c.dur, today:p[0]===0, short:c.kind==='body' && c.body<20});
+    });
+  });
+  var groups={};
+  items.forEach(function(it){ (groups[it.v.name]=groups[it.v.name]||[]).push(it); });
+  var out=[];
+  Object.keys(groups).forEach(function(name){
+    var arr=groups[name].sort(function(a,b){ return a.s-b.s || a.e-b.e; });
+    var i,j;
+    for (i=0;i<arr.length;i++){
+      for (j=i+1;j<arr.length;j++){
+        if (arr[j].s>=arr[i].e) break;
+        if (arr[i].today || arr[j].today) out.push({type:'overlap', level:'bad', name:name, a:arr[i], b:arr[j]});
+      }
+    }
+    var cl=[];
+    var flush=function(){ if (cl.length>=2 && cl.some(function(x){ return x.today; })) out.push({type:'2h', level:'warn', name:name, items:cl.slice()}); cl=[]; };
+    arr.forEach(function(x){
+      if (x.short) return;
+      if (!cl.length){ cl=[x]; return; }
+      var g=x.s-cl[cl.length-1].e;
+      if (g>=0 && g<120) cl.push(x); else { flush(); cl=[x]; }
+    });
+    flush();
+    arr.forEach(function(x){
+      if (!x.today) return;
+      if (x.short){
+        var mg=Infinity;
+        arr.forEach(function(y){ if(y===x) return; var g = y.s>=x.e ? y.s-x.e : (x.s>=y.e ? x.s-y.e : null); if (g!==null && g<mg) mg=g; });
+        if (mg<120) out.push({type:'freq', level:'info', name:name, a:x, gap:mg});
+      }
+      if (x.c.band.key!=='day'){
+        var sm=surchargeMinutes(toMin(x.v.start), x.c.dur);
+        if (sm*2 < x.c.dur) out.push({type:'band', level:'info', name:name, a:x, sm:sm});
+      }
+    });
+  });
+  var rank={bad:0, warn:1, info:2};
+  out.sort(function(a,b){ return rank[a.level]-rank[b.level] || byName(a.name,b.name); });
+  return out;
+}
+function checkFlags(list){
+  var f={};
+  list.forEach(function(ch){
+    if (ch.type==='overlap'){ if(ch.a.today) f[ch.a.v.id]='bad'; if(ch.b.today) f[ch.b.v.id]='bad'; }
+    if (ch.type==='2h'){ ch.items.forEach(function(x){ if(x.today && !f[x.v.id]) f[x.v.id]='warn'; }); }
+  });
+  return f;
+}
+
+/* ================= 印刷シート ================= */
+function renderSheet(ds, o){
+  o=o||{};
+  var P=state.print, C=clamp(P.cols|0,8,30);
+  var list=visitsOn(ds);
+  var groups=[], idx={};
+  state.shifts.forEach(function(s){ idx[s]=groups.length; groups.push([s,[]]); });
+  var rest=[];
+  list.forEach(function(v){ if (v.shift in idx) groups[idx[v.shift]][1].push(v); else rest.push(v); });
+  if (rest.length) groups.push(['他',rest]);
+  var blocks=[];
+  groups.forEach(function(g){
+    if (!g[1].length && !P.showEmpty) return;
+    var n=Math.max(1, Math.ceil(g[1].length/C));
+    for (var i=0;i<n;i++) blocks.push({sh:g[0], i:i, n:n, items:g[1].slice(i*C,(i+1)*C)});
+  });
+  var rows=P.showUnits?5:4;
+  var blockH=5.2+7.6+6.4*2+5+(P.showUnits?4.6:0)+2.2+1.4;
+  var k=Math.min(1.12, (194-12)/(Math.max(1,blocks.length)*blockH));
+  var colW=(281-13)/C;
+  /* 名前は3文字、時刻は「23:45」が1マスに収まる大きさまで */
+  var nf=Math.min(4.5,(colW-1.9)/(3.15*k)), tf=Math.min(4.5,(colW-1.9)/(2.65*k));
+  var total=0; list.forEach(function(v){ var c=calc(v); if(c.ok) total+=c.units; });
+  var flags=o.flags||{};
+  var h='<div class="sheet" style="--k:'+k.toFixed(3)+';--nf:'+nf.toFixed(2)+'mm;--tf:'+tf.toFixed(2)+'mm">';
+  h+='<div class="sh-head"><div class="sh-date">'+jpDate(ds)+'</div><div class="sh-title">'+esc(P.title||'訪問日程表')+'</div><div class="sh-right">'+(P.showUnits?'<span>合計 '+num(total)+'単位</span>':'')+(P.facility?'<span>'+esc(P.facility)+'</span>':'')+'</div></div>';
+  blocks.forEach(function(b){
+    var cells=b.items.slice(); while(cells.length<C) cells.push(null);
+    h+='<table class="blk"><colgroup><col class="c-lab">'+new Array(C+1).join('<col>')+'</colgroup><tbody>';
+    h+='<tr class="r-hour"><th>時間</th>'+cells.map(function(v){ return '<td>'+(v?Math.floor(toMin(v.start)/60):'')+'</td>'; }).join('')+'</tr>';
+    h+='<tr class="r-name"><th class="lab" rowspan="'+rows+'">'+esc(b.sh)+(b.n>1?'<small>'+(b.i+1)+'/'+b.n+'</small>':'')+'</th>'+cells.map(function(v){
+      if (!v) return '<td></td>';
+      var cls=[v.bold?'b':'', flags[v.id]?'flag-'+flags[v.id]:''].filter(Boolean).join(' ');
+      return '<td'+(cls?' class="'+cls+'"':'')+(o.interactive?' data-act="day-visit" data-vid="'+esc(v.id)+'" title="'+esc(v.name+' '+hm(toMin(v.start))+'〜'+hm(toMin(v.end)))+'"':'')+'>'+esc(v.name)+'</td>';
+    }).join('')+'</tr>';
+    h+='<tr class="r-time">'+cells.map(function(v){ return '<td>'+(v?hm(toMin(v.start)):'')+'</td>'; }).join('')+'</tr>';
+    h+='<tr class="r-time">'+cells.map(function(v){ return '<td>'+(v?hm(toMin(v.end)):'')+'</td>'; }).join('')+'</tr>';
+    h+='<tr class="r-note">'+cells.map(function(v){ return '<td>'+(v?esc(noteText(v)):'')+'</td>'; }).join('')+'</tr>';
+    if (P.showUnits) h+='<tr class="r-units">'+cells.map(function(v){ if(!v) return '<td></td>'; var c=calc(v); return '<td>'+(c.ok?'<em>'+esc(shortCode(c))+'</em>'+num(c.units):'—')+'</td>'; }).join('')+'</tr>';
+    h+='</tbody></table>';
+  });
+  return h+'</div>';
+}
+function buildPrintDoc(dates){
+  var P=state.print;
+  var title=(P.title||'訪問日程表')+' '+(dates.length>1 ? jpDate(dates[0])+'〜'+jpDate(dates[dates.length-1]) : jpDate(dates[0]));
+  var sheets=dates.map(function(d){ return renderSheet(d); }).join('');
+  return '<!DOCTYPE html>\n<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'+esc(title)+'</title>'+
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDGothic:wght@400;700&family=BIZ+UDPGothic:wght@400;700&display=swap">'+
+    '<style>'+SHEET_CSS+'\n@page{size:A4 landscape;margin:8mm}html,body{margin:0;background:#e6e9e7}'+
+    '.bar{position:sticky;top:0;z-index:2;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-bottom:1px solid #ccd3cf;font:14px/1.5 '+SHEET_FONT+'}'+
+    '.bar button{font:inherit;font-weight:700;padding:8px 18px;border-radius:8px;border:0;background:#16705a;color:#fff;cursor:pointer}'+
+    '.pages{display:grid;gap:14px;justify-content:center;padding:16px}.pages .sheet{width:297mm;height:210mm;padding:8mm;box-shadow:0 1px 4px rgba(0,0,0,.2)}'+
+    '@media print{html,body{background:#fff}.bar{display:none}.pages{display:block;padding:0}.pages .sheet{width:281mm;height:194mm;padding:0;box-shadow:none;break-after:page;page-break-after:always}.pages .sheet:last-child{break-after:auto;page-break-after:auto}}'+
+    '</style></head><body><div class="bar"><span>'+esc(title)+'（A4横・'+dates.length+'枚）</span><button type="button" onclick="window.print()">印刷する</button></div><div class="pages">'+sheets+'</div>'+
+    '<script>window.addEventListener("load",function(){var go=function(){setTimeout(function(){try{window.print()}catch(e){}},400)};if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go,go)}else{go()}});<\/script></body></html>';
+}
+
+/* ================= 保存 ================= */
+function setStatus(k){
+  statusKind=k;
+  var el=$('#status'); if(!el) return;
+  var map={
+    connecting:['busy','接続中…'], slow:['err','接続に時間がかかっています'], saved:['ok','保存済み'],
+    pending:['busy','保存中…'], saving:['busy','保存中…'], local:['ok','この端末に保存'],
+    nosave:['err','保存できません'], error:['err','保存できませんでした']
+  };
+  var m=map[k]||['',''];
+  if (readOnly) m=['','閲覧のみ'];
+  el.className='status '+m[0];
+  el.innerHTML='<i></i>'+esc(m[1]);
+  el.title = mode==='cloud' ? 'このツールに保存され、ほかの端末で開いても同じデータが出ます' : 'このブラウザの中だけに保存されます';
+}
+function commit(msg){
+  if (!state) return;
+  state.updatedAt=new Date().toISOString();
+  var cutoff=addDays(todayStr(),-400);
+  Object.keys(state.overrides).forEach(function(d){ var o=state.overrides[d]; if (d<cutoff || (!o.off.length && !o.add.length)) delete state.overrides[d]; });
+  persist();
+  render();
+  if (msg) toast(msg);
+}
+function persist(){
+  if (readOnly) return;
+  if (mode==='cloud' && cloud.ref) scheduleCloudSave(); else saveLocal();
+}
+function saveLocal(){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); localOk=true; setStatus('local'); }
+  catch(e){ localOk=false; setStatus('nosave'); }
+}
+function scheduleCloudSave(){
+  cloud.dirty=true;
+  clearTimeout(cloud.timer);
+  setStatus('pending');
+  cloud.timer=setTimeout(function(){ flushCloud(false); }, 450);
+}
+function flushCloud(retry){
+  if (cloud.saving){ cloud.again=true; return; }
+  var body=clone(state), key=stable(body);
+  if (key===cloud.lastKey){ cloud.dirty=false; setStatus('saved'); return; }
+  cloud.saving=true; setStatus('saving');
+  var prevKey=cloud.lastKey; cloud.lastKey=key;
+  Promise.resolve().then(function(){ return cloud.ref.set(body); }).then(function(){
+    cloud.saving=false;
+    if (cloud.again){ cloud.again=false; flushCloud(false); return; }
+    cloud.dirty=false; setStatus('saved');
+  }, function(err){
+    cloud.saving=false; cloud.lastKey=prevKey;
+    var code=err && err.code;
+    if ((code==='unavailable' || !code) && !retry){ setTimeout(function(){ flushCloud(true); }, 800+Math.random()*1200); return; }
+    cloud.dirty=false;
+    onWriteError(code);
+  });
+}
+function onWriteError(code){
+  if (code==='invalid_argument' || code==='revoked' || code==='not_granted'){
+    readOnly=true; setStatus('readonly'); render(); toast('このデータを変更する権限がありません（閲覧のみ）');
+  } else if (code==='quota_exceeded'){
+    setStatus('error'); toast('保存できる量の上限です。古い「この日だけ」の記録を減らしてください');
+  } else {
+    setStatus('error'); toast('保存できませんでした。通信状態を確かめて、もう一度操作してください');
+  }
+}
+function startLocal(fromCloud){
+  mode='local';
+  var raw=null;
+  try { raw=localStorage.getItem(STORE_KEY); localOk=true; } catch(e){ localOk=false; }
+  try { state=normalize(raw ? JSON.parse(raw) : {}); } catch(e){ state=normalize({}); }
+  setStatus(localOk ? 'local' : 'nosave');
+  if (fromCloud){ cloud.failed=true; toast('ツールに保存できないため、この端末に保存します'); }
+  render();
+}
+function startCloud(){
+  mode='cloud'; setStatus('connecting'); render();
+  var use=window.claude.use;
+  Promise.resolve().then(function(){ return use('db'); }).catch(function(){ return null; }).then(function(db){
+    if (!db){ startLocal(true); return; }
+    try { cloud.ref=db.doc(DOC_PATH); } catch(e){ startLocal(true); return; }
+    var timer=setTimeout(function(){ if(!state){ cloud.slow=true; setStatus('slow'); render(); } }, 10000);
+    cloud.unsub=cloud.ref.onSnapshot(function(snap){
+      if (!snap.metadata.fromCache){ clearTimeout(timer); cloud.slow=false; }
+      if (snap.metadata.hasPendingWrites) return;
+      if (cloud.dirty && state) return;
+      if (!snap.exists){
+        if (!state && !snap.metadata.fromCache){ state=normalize({}); setStatus('saved'); render(); }
+        return;
+      }
+      var body=snap.data()||{}, key=stable(body);
+      if (state && key===cloud.lastKey){ if(!cloud.saving && !cloud.dirty) setStatus('saved'); return; }
+      cloud.lastKey=key;
+      state=normalize(clone(body));
+      setStatus('saved');
+      render();
+    }, function(err){
+      clearTimeout(timer);
+      var code=err && err.code;
+      if (!state){ startLocal(true); return; }
+      if (code==='revoked'){ readOnly=true; }
+      setStatus('error'); render();
+      toast('データとの接続が切れました。開き直すと最新の状態になります');
+    });
+    Promise.resolve().then(function(){ return use('user'); }).then(function(user){
+      if (user && typeof user.can==='function') return Promise.resolve(user.can('data.write'));
+      return null;
+    }).then(function(can){ if (can===false){ readOnly=true; setStatus('readonly'); render(); } }).catch(function(){});
+  });
+}
+function saveFile(filename, data, mime){
+  if (mode==='cloud' && window.claude && window.claude.use){
+    return Promise.resolve().then(function(){ return window.claude.use('downloads'); }).catch(function(){ return null; }).then(function(dl){
+      if (!dl) return downloadLocal(filename, data, mime);
+      return dl.save({filename:filename, data:data}).then(function(){ return true; }, function(e){
+        if (e && e.code==='declined') return false;
+        toast('ファイルを保存できませんでした'+(e&&e.code?'（'+e.code+'）':''));
+        return false;
+      });
+    });
+  }
+  return Promise.resolve(downloadLocal(filename, data, mime));
+}
+function downloadLocal(filename, data, mime){
+  try {
+    var blob=new Blob([data],{type:mime||'application/octet-stream'});
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+    return true;
+  } catch(e){ toast('ファイルを保存できませんでした'); return false; }
+}
+
+/* ================= 画面：共通 ================= */
+function markTabs(){
+  document.querySelectorAll('nav.tabs a').forEach(function(a){
+    if (a.dataset.tab===ui.tab) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
+  });
+}
+function render(){
+  var el=$('#main'); if(!el) return;
+  markTabs();
+  if (ui.tab==='calc' && $('#calc-out')){ updateCalc(); return; }
+  var a=document.activeElement, fid=a && a.id, sel=null;
+  try { if (a && typeof a.selectionStart==='number') sel=[a.selectionStart, a.selectionEnd]; } catch(e){}
+  if (!state && ui.tab!=='calc'){ el.innerHTML=loadingHTML(); return; }
+  if (ui.tab==='day'){ el.innerHTML=renderDay(); fitSheet(); }
+  else if (ui.tab==='visits') el.innerHTML=renderVisits();
+  else if (ui.tab==='calc'){ el.innerHTML=renderCalc(); updateCalc(); }
+  else if (ui.tab==='month') el.innerHTML=renderMonth();
+  else el.innerHTML=renderData();
+  if (fid && !modalOpen()){
+    var n=document.getElementById(fid);
+    if (n && n!==document.activeElement){ n.focus({preventScroll:true}); try { if(sel) n.setSelectionRange(sel[0],sel[1]); } catch(e){} }
+  }
+}
+function loadingHTML(){
+  return '<div class="card loading">'+(cloud.slow?'':'<span class="spin"></span>')+'<span>'+(cloud.slow?'データにつながるのに時間がかかっています。通信状態を確かめてください。':'データを読み込んでいます…')+'</span></div>';
+}
+function visitRow(v, o){
+  var c=calc(v), tags=[];
+  if (o.mode==='master'){
+    if (!o.showName) tags.push('<span class="tag tag-shift">'+esc(v.shift||'シフト未設定')+'</span>');
+    tags.push('<span class="tag">'+esc(daysLabel(v.days))+'</span>');
+    if (v.active===false) tags.push('<span class="tag tag-off">休止中</span>');
+  } else {
+    var dl=daysLabel(v.days);
+    if (v._extra) tags.push('<span class="tag tag-extra">この日だけ</span>');
+    else if (dl!=='毎日') tags.push('<span class="tag">'+esc(dl)+'</span>');
+    if (v._off) tags.push('<span class="tag tag-off">この日は休み</span>');
+  }
+  if (v.two) tags.push('<span class="tag tag-two">2人</span>');
+  if (v.memo) tags.push('<span class="tag">'+esc(v.memo)+'</span>');
+  var act = o.mode==='day' ? 'day-visit' : (readOnly ? '' : 'edit-visit');
+  return '<li class="vrow'+(v._off||v.active===false?' is-off':'')+'" data-act="'+act+'" data-vid="'+esc(v.id)+'"'+(act?' tabindex="0" role="button"':'')+'>'+
+    '<span class="vt">'+hm(toMin(v.start))+'<i>〜</i>'+hm(toMin(v.end))+'<small>'+(c.ok?c.dur+'分':'')+'</small></span>'+
+    '<span class="vn">'+(o.showName?'<b class="'+(v.bold?'em':'')+'">'+esc(v.name)+'</b>':'')+tags.join('')+'</span>'+
+    '<span class="vs '+(c.ok?'band-'+c.band.key:'')+'">'+(c.ok?esc(c.name):'時刻を確認')+'</span>'+
+    '<span class="vu">'+(c.ok?num(c.units):'—')+'<small>単位</small></span></li>';
+}
+
+/* ================= 日程表タブ ================= */
+function renderDay(){
+  var ds=ui.date;
+  var all=visitsOn(ds,true), active=all.filter(function(v){ return !v._off; });
+  var total=0; active.forEach(function(v){ var c=calc(v); if(c.ok) total+=c.units; });
+  var checks=checksFor(ds), flags=checkFlags(checks);
+  var hasWarn=checks.some(function(c){ return c.level!=='info'; });
+  var h='<section>';
+  h+='<div class="day-bar"><div class="date-nav"><button class="icon-btn" data-act="day-prev" aria-label="前の日">‹</button>'+
+     '<div class="date-box"><span class="date-big">'+jpDate(ds)+'</span><input type="date" id="day-date" data-change="day-date" value="'+ds+'" aria-label="日付を選ぶ"></div>'+
+     '<button class="icon-btn" data-act="day-next" aria-label="次の日">›</button></div>'+
+     '<div class="quick-days"><button type="button" data-act="day-today">今日</button><button type="button" data-act="day-tomorrow">明日</button></div>'+
+     '<div class="day-actions">'+(readOnly?'':'<button class="btn" data-act="extra-add">＋この日だけ追加</button>')+'<button class="btn primary" data-act="print">印刷する</button></div></div>';
+  h+='<div class="kpis"><div class="kpi"><span>訪問</span><b>'+active.length+'</b><small>件</small></div>'+
+     '<div class="kpi"><span>合計</span><b>'+num(total)+'</b><small>単位</small></div>'+
+     '<div class="kpi '+(checks.length?(hasWarn?'warn':'info'):'')+'"><span>確認すること</span><b>'+checks.length+'</b><small>件</small></div></div>';
+  if (checks.length) h+=renderChecks(checks, ds);
+  if (!state.visits.length && !all.length) h+=emptyVisitsHTML();
+  h+='<div class="view-bar"><div class="seg" role="group" aria-label="表示"><button type="button" data-act="view" data-v="sheet" aria-pressed="'+(ui.view==='sheet')+'">印刷イメージ</button><button type="button" data-act="view" data-v="list" aria-pressed="'+(ui.view==='list')+'">一覧</button></div>'+
+     (ui.view==='sheet'?'<button type="button" class="btn" data-act="zoom">'+(ui.zoom?'全体を表示':'拡大する')+'</button><span class="hint" style="margin:0">名前を押すと「この日だけ休み」などができます</span>':'')+'</div>';
+  if (ui.view==='sheet'){
+    h+='<div class="sheet-wrap'+(ui.zoom?' zoom':'')+'" id="sheet-wrap"><div class="sheet-sizer" id="sheet-sizer"><div class="sheet-scale" id="sheet-scale"><div class="paper">'+renderSheet(ds,{interactive:true, flags:flags})+'</div></div></div></div>';
+  } else {
+    h+=renderDayList(all, ds);
+  }
+  return h+'</section>';
+}
+function renderDayList(all, ds){
+  var groups=[], idx={};
+  state.shifts.forEach(function(s){ idx[s]=groups.length; groups.push([s,[]]); });
+  var rest=[];
+  all.forEach(function(v){ if (v.shift in idx) groups[idx[v.shift]][1].push(v); else rest.push(v); });
+  if (rest.length) groups.push(['他',rest]);
+  return groups.map(function(g){
+    var act=g[1].filter(function(v){ return !v._off; });
+    var sum=0; act.forEach(function(v){ var c=calc(v); if(c.ok) sum+=c.units; });
+    return '<div class="card shift-card"><div class="shift-head"><h3>'+esc(g[0])+'</h3><span>'+act.length+'件・'+num(sum)+'単位</span></div>'+
+      (g[1].length ? '<ul class="vlist">'+g[1].map(function(v){ return visitRow(v,{mode:'day', showName:true}); }).join('')+'</ul>' : '<p class="empty">この段の訪問はありません</p>')+'</div>';
+  }).join('');
+}
+function spanOf(x, ds){
+  var pre = x.d===ds ? '' : (x.d<ds ? '前日 ' : '翌日 ');
+  return pre+hm(toMin(x.v.start))+'〜'+hm(toMin(x.v.end));
+}
+function renderChecks(list, ds){
+  return '<div class="checks">'+list.map(function(ch){
+    var title='', body='';
+    var who='<b style="display:inline">'+esc(ch.name)+'</b>さん：';
+    if (ch.type==='overlap'){
+      title='同じ人の訪問が重なっています';
+      body=who+spanOf(ch.a,ds)+'（'+esc(ch.a.v.shift)+'）と '+spanOf(ch.b,ds)+'（'+esc(ch.b.v.shift)+'）。2人で行う訪問なら1件にまとめて「2人で訪問」にしてください。';
+    } else if (ch.type==='2h'){
+      var sum=0, lifeSum=0, sep=0, gaps=[];
+      ch.items.forEach(function(x,i){ sum+=x.c.dur; lifeSum+=x.c.life; sep+=x.c.units; if(i) gaps.push(x.s-ch.items[i-1].e); });
+      var f=ch.items[0];
+      var comb=calc({start:f.v.start, end:hhmm(toMin(f.v.start)+sum), two:f.v.two, life:lifeSum, freq:false});
+      title='2時間ルール（所要時間の合算）';
+      body=who+ch.items.map(function(x){ return spanOf(x,ds); }).join('、')+' の間が'+gaps.join('分・')+'分しか空いていません。2時間未満の間隔の訪問は、原則として所要時間を合算して1回で算定します。'+
+        (comb.ok?'合算すると'+sum+'分 → <b style="display:inline">'+esc(comb.name)+' '+num(comb.units)+'単位</b>（参考：時間帯は最初の開始時刻で計算）。今の登録のまま別々だと'+num(sep)+'単位です。':'');
+    } else if (ch.type==='freq'){
+      title='20分未満の訪問の間隔';
+      body=who+spanOf(ch.a,ds)+'（20分未満）は、前後の訪問との間が'+ch.gap+'分です。20分未満の身体介護は合算しませんが、2時間空けずに行う「頻回の訪問」にあたる場合は、利用者・事業所の要件を満たしているか確かめてください。';
+    } else if (ch.type==='band'){
+      title='加算の時間帯にかかる時間が短い';
+      body=who+spanOf(ch.a,ds)+' は開始が'+ch.a.c.band.label+'ですが、加算の時間帯にかかるのは'+ch.sm+'分（全体'+ch.a.c.dur+'分）です。ごくわずかな場合は加算できません。';
+    }
+    return '<div class="check-card lv-'+ch.level+'"><b>'+title+'</b><p>'+body+'</p></div>';
+  }).join('')+'</div>';
+}
+function fitSheet(){
+  var wrap=$('#sheet-wrap'), sizer=$('#sheet-sizer'), sc=$('#sheet-scale');
+  if (!wrap || !sizer || !sc) return;
+  var paper=sc.firstElementChild; if(!paper) return;
+  var pw=paper.offsetWidth, ph=paper.offsetHeight;
+  var gutter=12, avail=wrap.clientWidth-gutter*2;
+  if (avail<=0 || !pw) return;
+  var k=avail/pw;
+  if (ui.zoom) k=Math.max(k, 0.82);
+  k=Math.min(k, 1.25);
+  sc.style.transform='translate('+gutter+'px,'+gutter+'px) scale('+k+')';
+  sizer.style.width=Math.ceil(pw*k+gutter*2)+'px';
+  sizer.style.height=Math.ceil(ph*k+gutter*2)+'px';
+}
+
+/* その日の訪問を押したとき */
+function findDayVisit(vid, ds){
+  var v=null, extra=false;
+  for (var i=0;i<state.visits.length;i++) if (state.visits[i].id===vid){ v=state.visits[i]; break; }
+  if (!v){ var ov=state.overrides[ds]; if (ov) ov.add.forEach(function(a){ if(a.id===vid){ v=a; extra=true; } }); }
+  return v ? {v:v, extra:extra} : null;
+}
+function openDayVisit(vid){
+  var ds=ui.date, f=findDayVisit(vid, ds); if(!f) return;
+  var v=f.v, ov=state.overrides[ds]||{off:[],add:[]};
+  var off=ov.off.indexOf(vid)>=0, c=calc(v);
+  var btns='';
+  if (!readOnly){
+    btns = f.extra
+      ? '<button type="button" class="btn" id="dv-edit">この日だけの訪問を直す</button><button type="button" class="btn danger" id="dv-del">この日だけの訪問を消す</button>'
+      : '<button type="button" class="btn '+(off?'primary':'')+'" id="dv-off">'+(off?'休みを取り消す（予定どおり訪問）':'この日だけ休みにする（入院・外泊など）')+'</button><button type="button" class="btn" id="dv-edit">毎週の設定を直す</button>';
+  }
+  openModal('<h2 class="m-title">'+esc(v.name)+'さん　'+hm(toMin(v.start))+'〜'+hm(toMin(v.end))+'</h2>'+
+    '<p class="m-sub">'+jpDate(ds)+'・'+esc(v.shift||'シフト未設定')+(f.extra?'・この日だけの訪問':'・'+esc(daysLabel(v.days)))+(off?'・この日は休み':'')+'</p>'+
+    '<div class="pv">'+previewHTML(c)+'</div>'+
+    (btns?'<div class="m-stack">'+btns+'</div>':'')+
+    '<div class="m-actions"><span class="sp"></span><button type="button" class="btn" data-act="modal-close">閉じる</button></div>', {
+    onMount:function(root){
+      var b;
+      if ((b=$('#dv-off',root))) b.onclick=function(){
+        var o=state.overrides[ds]||(state.overrides[ds]={off:[],add:[]});
+        var i=o.off.indexOf(vid);
+        if (i>=0) o.off.splice(i,1); else o.off.push(vid);
+        closeModal(true); commit(i>=0?'休みを取り消しました':jpDate(ds)+'は休みにしました');
+      };
+      if ((b=$('#dv-edit',root))) b.onclick=function(){ closeModal(true); openEditor(v, f.extra?{extraDate:ds}:{}); };
+      if ((b=$('#dv-del',root))) b.onclick=function(){
+        var o=state.overrides[ds]; if(o) o.add=o.add.filter(function(a){ return a.id!==vid; });
+        closeModal(true); commit('この日だけの訪問を消しました');
+      };
+    }
+  });
+}
+function previewHTML(c){
+  if (!c.ok) return '<span class="pv-err">'+esc(c.error)+'</span>';
+  return '<span class="band-pill band-'+c.band.key+'">'+c.band.label+'</span><span class="pv-name">'+esc(c.name)+'</span><span class="pv-dur">'+c.dur+'分</span><span class="pv-u">'+num(c.units)+'<small>単位</small></span>';
+}
+
+/* 印刷 */
+function openPrintDialog(){
+  var n=1;
+  var note = (mode==='cloud')
+    ? '印刷用のファイル（HTML）を保存します。ファイルを開くと印刷画面が出ます。出ないときは Ctrl＋P（Macは ⌘＋P）を押してください。'
+    : '印刷画面が開きます。用紙は「A4・横」、余白は「標準」か「なし」を選んでください。';
+  openModal('<h2 class="m-title">印刷する</h2><p class="m-sub">A4横・'+jpDate(ui.date)+'から</p>'+
+    '<div class="stack"><div class="seg" role="group" aria-label="何日分">'+[1,3,7].map(function(k){ return '<button type="button" data-n="'+k+'" aria-pressed="'+(k===1)+'">'+(k===1?'この日だけ':k+'日分')+'</button>'; }).join('')+'</div>'+
+    '<label class="check"><input type="checkbox" id="pr-units" '+(state.print.showUnits?'checked':'')+(readOnly?' disabled':'')+'><span>単位も印刷する（管理用）</span></label>'+
+    '<p class="hint" style="margin:0">'+note+'</p></div>'+
+    '<div class="m-actions"><span class="sp"></span><button type="button" class="btn" data-act="modal-close">やめる</button><button type="button" class="btn primary" id="pr-go">印刷する</button></div>', {
+    onMount:function(root){
+      root.querySelectorAll('[data-n]').forEach(function(b){ b.onclick=function(){ n=+b.dataset.n; root.querySelectorAll('[data-n]').forEach(function(x){ x.setAttribute('aria-pressed', String(x===b)); }); }; });
+      var u=$('#pr-units',root); if(u) u.onchange=function(){ state.print.showUnits=u.checked; commit(); };
+      $('#pr-go',root).onclick=function(){ closeModal(true); doPrint(n); };
+    }
+  });
+}
+function doPrint(n){
+  var dates=[]; for (var i=0;i<n;i++) dates.push(addDays(ui.date,i));
+  if (mode==='cloud' && window.claude && window.claude.use){
+    saveFile('訪問日程表_'+dates[0]+(n>1?'_'+n+'日分':'')+'.html', buildPrintDoc(dates), 'text/html').then(function(ok){
+      if (ok) toast('保存しました。ファイルを開くと印刷できます');
+    });
+    return;
+  }
+  var root=$('#print-root');
+  root.innerHTML=dates.map(function(d){ return renderSheet(d); }).join('');
+  setTimeout(function(){ try { window.print(); } catch(e){ toast('印刷画面を開けませんでした'); } }, 60);
+}
+
+/* ================= 訪問の登録タブ ================= */
+function renderVisits(){
+  var names={}; state.visits.forEach(function(v){ names[v.name]=1; });
+  var paused=state.visits.filter(function(v){ return v.active===false; }).length;
+  var h='<section><div class="toolbar">'+(readOnly?'':'<button class="btn primary" data-act="add-visit">＋ 訪問を追加</button>')+
+    '<div class="seg" role="group" aria-label="並べ方"><button type="button" data-act="vg" data-v="person" aria-pressed="'+(ui.vg==='person')+'">利用者ごと</button><button type="button" data-act="vg" data-v="shift" aria-pressed="'+(ui.vg==='shift')+'">シフトごと</button></div>'+
+    '<input type="search" id="v-q" data-input="vq" placeholder="名前で探す" aria-label="名前で探す" value="'+esc(ui.query)+'"></div>'+
+    '<p class="meta">登録 '+state.visits.length+'件・利用者 '+Object.keys(names).length+'人'+(paused?'・休止中 '+paused+'件':'')+'。行を押すと直せます。単位はその時間から自動で出ます。</p>'+
+    '<div id="v-list">'+visitsListHTML()+'</div></section>';
+  return h;
+}
+function weekStats(vs){
+  var n=0, u=0;
+  vs.forEach(function(v){ if (v.active===false) return; var c=calc(v); if(!c.ok) return; n+=v.days.length; u+=c.units*v.days.length; });
+  return {n:n, u:u};
+}
+function visitsListHTML(){
+  if (!state.visits.length) return emptyVisitsHTML();
+  var q=ui.query.trim();
+  var vs=state.visits.filter(function(v){ return !q || v.name.indexOf(q)>=0; })
+    .sort(function(a,b){ return (toMin(a.start)-toMin(b.start)) || byName(a.name,b.name); });
+  if (!vs.length) return '<p class="empty">「'+esc(q)+'」に当てはまる訪問はありません</p>';
+  var html='<div class="groups">';
+  if (ui.vg==='shift'){
+    var order=state.shifts.slice();
+    vs.forEach(function(v){ if (order.indexOf(v.shift)<0) order.push(v.shift); });
+    order.forEach(function(sh){
+      var arr=vs.filter(function(v){ return v.shift===sh; }); if(!arr.length) return;
+      html+='<div class="card pcard"><div class="phead"><h3>'+esc(sh||'シフト未設定')+'</h3><span class="pweek">'+arr.length+'件</span></div><ul class="vlist">'+arr.map(function(v){ return visitRow(v,{mode:'master', showName:true}); }).join('')+'</ul></div>';
+    });
+  } else {
+    var byP={}; vs.forEach(function(v){ (byP[v.name]=byP[v.name]||[]).push(v); });
+    Object.keys(byP).sort(byName).forEach(function(name){
+      var arr=byP[name], ws=weekStats(arr), care=(state.people[name]||{}).care;
+      html+='<div class="card pcard"><div class="phead"><h3>'+esc(name)+'</h3>'+
+        '<select data-change="care" data-name="'+esc(name)+'" aria-label="'+esc(name)+'さんの要介護度"'+(readOnly?' disabled':'')+'><option value="">要介護度 —</option>'+[1,2,3,4,5].map(function(k){ return '<option value="'+k+'"'+(care===k?' selected':'')+'>要介護'+k+'</option>'; }).join('')+'</select>'+
+        '<span class="pweek">1週間 '+ws.n+'回・'+num(ws.u)+'単位</span></div><ul class="vlist">'+arr.map(function(v){ return visitRow(v,{mode:'master', showName:false}); }).join('')+'</ul></div>';
+    });
+  }
+  return html+'</div>';
+}
+function emptyVisitsHTML(){
+  return '<div class="card empty-card" style="margin-bottom:14px"><h3>まだ訪問が登録されていません</h3><p>「＋ 訪問を追加」で利用者・時間・曜日を入れると、日程表と単位が自動で出ます。別の端末で書き出したデータは「設定・データ」から読み込めます。</p>'+
+    (readOnly?'':'<div class="row wrap"><button class="btn primary" data-act="add-visit">＋ 訪問を追加</button><a class="btn" href="#data">データを読み込む</a></div>')+'</div>';
+}
+function suggestShift(start){
+  var m=toMin(start), sh=state.shifts;
+  if (isNaN(m) || !sh.length) return sh[0]||'';
+  var score={};
+  state.visits.forEach(function(v){
+    if (sh.indexOf(v.shift)<0) return;
+    var d=Math.abs(toMin(v.start)-m); d=Math.min(d,1440-d);
+    if (d<=45) score[v.shift]=(score[v.shift]||0)+(60-d);
+  });
+  var best=Object.keys(score).sort(function(a,b){ return score[b]-score[a]; })[0];
+  if (best) return best;
+  var pick=function(n){ return sh.indexOf(n)>=0 ? n : null; };
+  if (m<510) return pick('明')||sh[0];
+  if (m<660) return pick('早1')||pick('日')||sh[0];
+  if (m<960) return pick('遅')||pick('日')||sh[0];
+  return pick('夜勤')||sh[0];
+}
+function shiftOptions(cur){
+  var list=state.shifts.slice(); if (cur && list.indexOf(cur)<0) list.push(cur);
+  return list.map(function(s){ return '<option value="'+esc(s)+'"'+(s===cur?' selected':'')+'>'+esc(s)+'</option>'; }).join('');
+}
+
+/* 入力画面 */
+function openEditor(v, opts){
+  if (readOnly) return;
+  opts=opts||{};
+  var isNew=!v || opts.copy, extraDate=opts.extraDate||null;
+  var d = v ? clone(v) : {id:uid(), name:'', start:'09:00', end:'09:20', shift:'', days:[0,1,2,3,4,5,6], two:false, life:0, freq:false, bold:false, memo:'', active:true};
+  if (opts.copy){ d.id=uid(); }
+  delete d._extra; delete d._off;
+  if (!d.shift) d.shift=suggestShift(d.start);
+  var shiftTouched=!!v;
+  var names={}; state.visits.forEach(function(x){ names[x.name]=1; });
+  var title = extraDate ? jpDate(extraDate)+'だけの訪問' : (isNew ? '訪問を追加' : '訪問を直す');
+  openModal('<h2 class="m-title">'+title+'</h2>'+(extraDate?'<p class="m-sub">毎週の予定には入りません。この日の日程表と集計にだけ出ます。</p>':'')+
+    '<form id="ed" class="ed" novalidate>'+
+    '<label class="fld"><span>利用者の名前</span><input id="ed-name" list="ed-names" value="'+esc(d.name)+'" placeholder="例：辻本" autocomplete="off" maxlength="30"></label>'+
+    '<datalist id="ed-names">'+Object.keys(names).sort(byName).map(function(n){ return '<option value="'+esc(n)+'">'; }).join('')+'</datalist>'+
+    '<div class="time-row"><label class="fld"><span>開始</span><input type="time" id="ed-start" value="'+d.start+'" step="60"></label><span class="to">〜</span>'+
+    '<label class="fld"><span>終了</span><input type="time" id="ed-end" value="'+d.end+'" step="60"></label>'+
+    '<label class="fld"><span>時間</span><span class="dur-in"><input type="number" id="ed-dur" min="1" max="600" inputmode="numeric"><i>分</i></span></label></div>'+
+    '<div class="chips" style="margin:0">'+[19,20,30,45,60].map(function(m){ return '<button type="button" class="chip-btn" data-min="'+m+'">'+m+'分</button>'; }).join('')+'</div>'+
+    '<label class="fld"><span>日程表の段（シフト）</span><select id="ed-shift">'+shiftOptions(d.shift)+'</select></label>'+
+    (extraDate?'':'<fieldset class="days"><legend>曜日</legend><div class="day-toggles">'+WEEK.map(function(w){ return '<button type="button" class="day-tg" data-wd="'+w+'" aria-pressed="'+(d.days.indexOf(w)>=0)+'">'+WD[w]+'</button>'; }).join('')+'<button type="button" class="day-tg all" data-wd="all">毎日</button></div></fieldset>')+
+    '<div class="opt-list">'+
+      '<label class="check"><input type="checkbox" id="ed-two"'+(d.two?' checked':'')+'><span>2人で訪問する（×200%）</span></label>'+
+      '<label class="check"><span>続けて生活援助</span><input type="number" id="ed-life" class="small-num" min="0" max="300" inputmode="numeric" value="'+d.life+'"><span>分（身体介護の時間に含めて入力）</span></label>'+
+      '<label class="check" id="ed-freq-row"><input type="checkbox" id="ed-freq"'+(d.freq?' checked':'')+'><span>頻回の訪問として算定（身体介護02）</span></label>'+
+      '<label class="check"><input type="checkbox" id="ed-bold"'+(d.bold?' checked':'')+'><span>日程表で名前を太字にする</span></label>'+
+      (extraDate?'':'<label class="check"><input type="checkbox" id="ed-paused"'+(d.active===false?' checked':'')+'><span>休止中（入院などで当面は日程表に出さない）</span></label>')+
+    '</div>'+
+    '<label class="fld"><span>日程表に書くメモ（任意・短く）</span><input id="ed-memo" maxlength="20" value="'+esc(d.memo)+'" placeholder="例：トロミ"></label>'+
+    '<div class="pv" id="ed-pv"></div>'+
+    '<div class="m-actions">'+(isNew?'':'<button type="button" class="btn danger" id="ed-del">削除</button>')+(isNew||extraDate?'':'<button type="button" class="btn" id="ed-dup">複製して追加</button>')+
+    '<span class="sp"></span><button type="button" class="btn" data-act="modal-close">やめる</button><button type="submit" class="btn primary">保存</button></div></form>', {
+    onMount:function(root){
+      var g=function(id){ return root.querySelector('#'+id); };
+      var read=function(){
+        var days=[]; root.querySelectorAll('.day-tg[data-wd]').forEach(function(b){ if(b.dataset.wd!=='all' && b.getAttribute('aria-pressed')==='true') days.push(+b.dataset.wd); });
+        return {id:d.id, name:g('ed-name').value.trim(), start:g('ed-start').value, end:g('ed-end').value, shift:g('ed-shift').value,
+          days: extraDate ? [0,1,2,3,4,5,6] : days.sort(), two:g('ed-two').checked, life:Math.max(0,Math.floor(+g('ed-life').value||0)),
+          freq:g('ed-freq').checked, bold:g('ed-bold').checked, memo:g('ed-memo').value.trim(), active: extraDate ? true : !g('ed-paused').checked};
+      };
+      var pv=function(){
+        var x=read(), c=calc(x);
+        var shortBody = c.ok && c.kind==='body' && c.body<20;
+        g('ed-freq-row').style.display = shortBody ? '' : 'none';
+        if (!shortBody) x.freq=false;
+        g('ed-pv').innerHTML=previewHTML(calc(x));
+      };
+      var sync=function(src){
+        var s=toMin(g('ed-start').value), e=toMin(g('ed-end').value), m=+g('ed-dur').value;
+        if (src==='dur' || src==='start'){ if (!isNaN(s) && m>0 && m<1440) g('ed-end').value=hhmm(s+m); }
+        else if (!isNaN(s) && !isNaN(e)){ var dd=e-s; if (dd<=0) dd+=1440; g('ed-dur').value=dd; }
+        if (src==='start' && !shiftTouched) g('ed-shift').value=suggestShift(g('ed-start').value);
+        pv();
+      };
+      sync('end');
+      g('ed-start').addEventListener('input', function(){ sync('start'); });
+      g('ed-end').addEventListener('input', function(){ sync('end'); });
+      g('ed-dur').addEventListener('input', function(){ sync('dur'); });
+      g('ed-shift').addEventListener('change', function(){ shiftTouched=true; });
+      root.querySelectorAll('.chip-btn[data-min]').forEach(function(b){ b.onclick=function(){ g('ed-dur').value=b.dataset.min; sync('dur'); }; });
+      root.querySelectorAll('.day-tg').forEach(function(b){ b.onclick=function(){
+        var tgs=root.querySelectorAll('.day-tg[data-wd]:not(.all)');
+        if (b.dataset.wd==='all'){
+          var allOn=Array.prototype.every.call(tgs,function(x){ return x.getAttribute('aria-pressed')==='true'; });
+          tgs.forEach(function(x){ x.setAttribute('aria-pressed', String(!allOn)); });
+        } else b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed')!=='true'));
+        pv();
+      }; });
+      ['ed-two','ed-life','ed-freq','ed-name'].forEach(function(id){ g(id).addEventListener('input', pv); });
+      g('ed').addEventListener('submit', function(e){
+        e.preventDefault();
+        var x=read();
+        if (!x.name){ toast('利用者の名前を入れてください'); g('ed-name').focus(); return; }
+        if (isNaN(toMin(x.start)) || isNaN(toMin(x.end))){ toast('開始と終了の時刻を入れてください'); return; }
+        var c=calc(x); if (!c.ok){ toast(c.error); return; }
+        if (!(c.kind==='body' && c.body<20)) x.freq=false;
+        if (!extraDate && !x.days.length){ toast('曜日を1つ以上選んでください'); return; }
+        var nv=normVisit(x);
+        if (extraDate){
+          var o=state.overrides[extraDate]||(state.overrides[extraDate]={off:[],add:[]});
+          var i=-1; o.add.forEach(function(a,k){ if(a.id===nv.id) i=k; });
+          if (i>=0) o.add[i]=nv; else o.add.push(nv);
+        } else {
+          var j=-1; state.visits.forEach(function(a,k){ if(a.id===nv.id) j=k; });
+          if (j>=0) state.visits[j]=nv; else state.visits.push(nv);
+        }
+        if (!state.people[nv.name]) state.people[nv.name]={care:null};
+        closeModal(true); commit('保存しました');
+      });
+      var del=g('ed-del');
+      if (del) del.onclick=function(){
+        confirmBox(d.name+'さん '+hm(toMin(d.start))+'〜'+hm(toMin(d.end))+' を削除します。よろしいですか？', '削除する', true).then(function(ok){
+          if (!ok) return;
+          if (extraDate){ var o=state.overrides[extraDate]; if(o) o.add=o.add.filter(function(a){ return a.id!==d.id; }); }
+          else {
+            state.visits=state.visits.filter(function(a){ return a.id!==d.id; });
+            Object.keys(state.overrides).forEach(function(k){ var o=state.overrides[k]; o.off=o.off.filter(function(id){ return id!==d.id; }); });
+          }
+          commit('削除しました');
+        });
+      };
+      var dup=g('ed-dup');
+      if (dup) dup.onclick=function(){ var x=read(); closeModal(true); openEditor(x,{copy:true}); };
+    }
+  });
+}
+
+/* ================= 単位計算タブ ================= */
+function renderCalc(){
+  var c=ui.calc, d=toMin(c.end)-toMin(c.start); if (isNaN(d)) d=''; else if (d<=0) d+=1440;
+  return '<section>'+
+  '<div class="calc-grid"><div class="card"><h2 class="h">時間を入れる</h2>'+
+    '<div class="time-row"><label class="fld"><span>開始</span><input type="time" id="c-start" data-input="calc" value="'+c.start+'" step="60"></label><span class="to">〜</span>'+
+    '<label class="fld"><span>終了</span><input type="time" id="c-end" data-input="calc" value="'+c.end+'" step="60"></label>'+
+    '<label class="fld"><span>時間</span><span class="dur-in"><input type="number" id="c-dur" data-input="calc" min="1" max="600" inputmode="numeric" value="'+d+'"><i>分</i></span></label></div>'+
+    '<div class="chips" role="group" aria-label="よく使う時間">'+[19,20,30,45,60,90].map(function(m){ return '<button type="button" class="chip-btn" data-act="c-min" data-min="'+m+'">'+m+'分</button>'; }).join('')+'</div>'+
+    '<div class="opt-list"><label class="check"><input type="checkbox" id="c-two" data-input="calc"'+(c.two?' checked':'')+'><span>2人で訪問する（×200%）</span></label>'+
+    '<label class="check"><span>続けて生活援助</span><input type="number" id="c-life" data-input="calc" class="small-num" min="0" max="300" inputmode="numeric" value="'+c.life+'"><span>分（上の時間に含めて）</span></label>'+
+    '<label class="check" id="c-freq-row"><input type="checkbox" id="c-freq" data-input="calc"'+(c.freq?' checked':'')+'><span>頻回の訪問として算定（身体介護02）</span></label></div>'+
+  '</div><div class="card result" id="calc-out" aria-live="polite"></div></div>'+
+  '<div class="stack">'+
+  '<div class="card"><h2 class="h">1日の時間帯（開始時刻で決まります）</h2>'+bandBarHTML()+
+    '<div class="legend"><span><i class="band-early"></i>早朝 6:00〜8:00　＋25%</span><span><i class="band-night"></i>夜間 18:00〜22:00　＋25%</span><span><i class="band-late"></i>深夜 22:00〜翌6:00　＋50%</span></div></div>'+
+  '<div class="card"><h2 class="h">早見表（合成単位）</h2><div class="table-wrap" id="quick-table">'+quickTableHTML()+'</div><p class="hint">いま計算している区分に色がつきます。サービスコードは本の「サービス内容」の略称（例：身体介護01・深）で探せます。</p></div>'+
+  '<div class="card rules">'+rulesHTML()+'</div></div></section>';
+}
+function bandBarHTML(){
+  var segs=[[0,6,'late','深夜'],[6,8,'early','早朝'],[8,18,'day','日中'],[18,22,'night','夜間'],[22,24,'late','深夜']];
+  var m=toMin(ui.calc.start); if (isNaN(m)) m=0;
+  return '<div class="bandbar">'+segs.map(function(s){ return '<div class="bseg band-'+s[2]+'" style="flex:'+(s[1]-s[0])+'">'+s[3]+'</div>'; }).join('')+
+    '<div class="bmark" id="band-marker" style="left:'+(m/1440*100)+'%"><span>開始 '+hm(m)+'</span></div></div>'+
+    '<div class="ticks">'+[0,6,8,18,22,24].map(function(h,i,a){ return '<span class="'+(i===0?'l':(i===a.length-1?'r':''))+'" style="left:'+(h/24*100)+'%">'+h+'時</span>'; }).join('')+'</div>';
+}
+function quickTableHTML(){
+  var R=(state&&state.rates)||RATES_R6;
+  var rows=[['01','身体介護01','20分未満',R.b01],['1','身体介護1','20分以上30分未満',R.b1],['2','身体介護2','30分以上1時間未満',R.b2],['3','身体介護3','1時間以上1時間30分未満',R.b3],['s2','生活援助2','20分以上45分未満',R.s2],['s3','生活援助3','45分以上',R.s3]];
+  var f=function(u,two,k){ var x=two?u*2:u; if(k===1) x=Math.round(x*5/4); if(k===2) x=Math.round(x*3/2); return x; };
+  var heads=['日中','早朝・夜間<br>（＋25%）','深夜<br>（＋50%）','2人','2人・早朝夜間','2人・深夜'];
+  var cols=[[false,0],[false,1],[false,2],[true,0],[true,1],[true,2]];
+  return '<table class="qt"><thead><tr><th>区分</th>'+heads.map(function(h){ return '<th>'+h+'</th>'; }).join('')+'</tr></thead><tbody>'+
+    rows.map(function(r){ return '<tr><td>'+r[1]+'<small>'+r[2]+'</small></td>'+cols.map(function(c,i){ return '<td data-row="'+r[0]+'" data-col="'+i+'">'+num(f(r[3],c[0],c[1]))+'</td>'; }).join('')+'</tr>'; }).join('')+
+    '</tbody></table>';
+}
+function rulesHTML(){
+  return '<h2 class="h">計算のきまり</h2><ul>'+
+    '<li>所要時間は、実際にかかった時間ではなく、訪問介護計画に位置づけた標準的な時間で決めます。</li>'+
+    '<li>20分未満は「身体介護01」、20分ちょうど〜30分未満は「身体介護1」。19分と20分で区分が変わります。</li>'+
+    '<li>早朝・夜間・深夜の加算は、サービスの<b>開始時刻</b>で決まります。</li>'+
+    '<li>2人で訪問するときは×200%。計算は「2人」→「時間帯」の順で、そのつど小数点以下を四捨五入します（例：163×2＝326→×150%＝489）。</li>'+
+    '<li>前の訪問から2時間未満の間隔で行う訪問は、原則として所要時間を合算して1回で算定します（2時間ルール）。ただし20分未満の身体介護は合算しません。</li>'+
+    '<li>単位数は令和6年度改定のものです。令和8年6月の改定は処遇改善加算の見直しで、基本の単位数は変わっていません。</li>'+
+    '<li>表示は合成単位です。同一建物減算・特定事業所加算・処遇改善加算などは含みません。</li></ul>'+
+    '<p class="src">参考：<a href="https://www.kaigokensaku.mhlw.go.jp/publish/group2.html" target="_blank" rel="noopener">厚生労働省 介護サービス情報公表システム（訪問介護）</a>／<a href="https://www.mhlw.go.jp/topics/kaigo/housyu/dl/qa01b.pdf" target="_blank" rel="noopener">厚生労働省 介護報酬Q&amp;A（20分未満の身体介護と2時間ルール）</a>／<a href="https://www.mhlw.go.jp/content/12404000/001675936.pdf" target="_blank" rel="noopener">令和8年度介護報酬改定について</a></p>';
+}
+function rulerHTML(r){
+  if (r.kind!=='body') return '';
+  var max=120, segs=[[0,20,'01'],[20,30,'1'],[30,60,'2'],[60,90,'3'],[90,120,'4〜']];
+  var pos=Math.min(r.body,max)/max*100;
+  var on=function(l){ if (l==='01') return r.bodyKey==='01'; if (l==='4〜') return +r.bodyKey>=4; return r.bodyKey===l; };
+  return '<div class="ruler" aria-hidden="true"><div class="ruler-bar">'+segs.map(function(s){ return '<div class="rseg'+(on(s[2])?' on':'')+'" style="flex:'+(s[1]-s[0])+'">'+s[2]+'</div>'; }).join('')+
+    '<i class="ruler-mk" style="left:'+pos+'%"></i></div><div class="ticks">'+[0,20,30,60,90,120].map(function(t,i,a){ return '<span class="'+(i===0?'l':(i===a.length-1?'r':''))+'" style="left:'+(t/max*100)+'%">'+t+(i===a.length-1?'分〜':'')+'</span>'; }).join('')+'</div></div>';
+}
+function updateCalc(){
+  var out=$('#calc-out'); if(!out) return;
+  var v=clone(ui.calc), probe=calc(Object.assign({},v,{freq:false}));
+  var shortBody=probe.ok && probe.kind==='body' && probe.body<20;
+  var fr=$('#c-freq-row'); if (fr) fr.style.display=shortBody?'':'none';
+  if (!shortBody) v.freq=false;
+  var r=calc(v);
+  var mk=$('#band-marker'), sm=toMin(v.start);
+  if (mk && !isNaN(sm)){ mk.style.left=(sm/1440*100)+'%'; mk.firstChild.textContent='開始 '+hm(sm); }
+  document.querySelectorAll('#quick-table td.hit').forEach(function(td){ td.classList.remove('hit'); });
+  if (!r.ok){ out.innerHTML='<h2 class="h">結果</h2><p class="res-err">'+esc(r.error)+'</p>'; return; }
+  var yen=state&&state.yen;
+  out.innerHTML='<div class="res-top"><span class="band-pill band-'+r.band.key+'">'+r.band.label+'</span><span class="res-cat">'+esc(r.cat)+'</span></div>'+
+    '<div class="res-name">'+esc(r.name)+'</div>'+
+    '<div class="res-units"><b>'+num(r.units)+'</b><span>単位</span></div>'+
+    (yen?'<div class="res-yen">金額の目安 '+num(Math.floor(r.units*yen))+'円（1単位 '+yen+'円・円未満切り捨て）</div>':'')+
+    '<ol class="steps">'+r.steps.map(function(s){ return '<li>'+s+'</li>'; }).join('')+'</ol>'+
+    rulerHTML(r)+
+    (r.notes.length?'<ul class="notes">'+r.notes.map(function(n){ return '<li>'+esc(n)+'</li>'; }).join('')+'</ul>':'');
+  var rowKey = r.kind==='life' ? r.bodyKey : (r.lifeLv ? '' : (+r.bodyKey>=4 ? '' : r.bodyKey));
+  if (rowKey){
+    var col=(r.two?3:0)+({day:0,early:1,night:1,late:2})[r.band.key];
+    var td=document.querySelector('#quick-table td[data-row="'+rowKey+'"][data-col="'+col+'"]');
+    if (td) td.classList.add('hit');
+  }
+}
+
+/* ================= 月の集計タブ ================= */
+function monthData(ym){
+  var p=ym.split('-').map(Number), y=p[0], m=p[1], nd=new Date(y,m,0).getDate();
+  var per={}, total=0, count=0;
+  for (var d=1; d<=nd; d++){
+    var ds=y+'-'+pad(m)+'-'+pad(d);
+    visitsOn(ds).forEach(function(v){
+      var c=calc(v); if(!c.ok) return;
+      var r=per[v.name]||(per[v.name]={name:v.name, count:0, units:0, warn:0});
+      r.count++; r.units+=c.units; total+=c.units; count++;
+    });
+    checksFor(ds).forEach(function(ch){ if (ch.level!=='info' && per[ch.name]) per[ch.name].warn++; });
+  }
+  var rows=Object.keys(per).map(function(k){ return per[k]; }).sort(function(a,b){ return byName(a.name,b.name); });
+  return {y:y, m:m, nd:nd, rows:rows, total:total, count:count};
+}
+function renderMonth(){
+  var md=monthData(ui.month), yen=state.yen;
+  var warnN=md.rows.reduce(function(a,r){ return a+r.warn; },0);
+  var h='<section><div class="month-bar"><button class="icon-btn" data-act="month-prev" aria-label="前の月">‹</button><h2 class="month-title">'+md.y+'年'+md.m+'月</h2><button class="icon-btn" data-act="month-next" aria-label="次の月">›</button><span class="sp"></span><button class="btn" data-act="month-csv">CSVで保存</button></div>';
+  h+='<div class="kpis k4"><div class="kpi"><span>合計（合成単位）</span><b>'+num(md.total)+'</b><small>単位</small></div><div class="kpi"><span>訪問回数</span><b>'+num(md.count)+'</b><small>回</small></div><div class="kpi"><span>利用者</span><b>'+md.rows.length+'</b><small>人</small></div><div class="kpi '+(warnN?'warn':'')+'"><span>要確認（重なり・2時間ルール）</span><b>'+warnN+'</b><small>件</small></div></div>';
+  if (!md.rows.length) return h+'<p class="empty">この月の訪問はありません。</p></section>';
+  h+='<div class="card table-wrap"><table class="mt"><thead><tr><th>利用者</th><th>要介護度</th><th>回数</th><th>単位</th><th>限度額に対する割合</th><th>要確認</th>'+(yen?'<th>金額の目安</th>':'')+'</tr></thead><tbody>';
+  md.rows.forEach(function(r){
+    var care=(state.people[r.name]||{}).care, lim=LIMITS[care], pct=lim? r.units/lim*100 : null;
+    var cls= pct===null ? '' : (pct>100?'bad':(pct>=85?'warn':''));
+    h+='<tr><td><b>'+esc(r.name)+'</b></td><td>'+(care?'要介護'+care:'<span class="muted">—</span>')+'</td><td class="n">'+r.count+'</td><td class="n">'+num(r.units)+'</td>'+
+      '<td>'+(lim?'<div class="pct"><div class="pbar '+cls+'"><i style="width:'+Math.min(100,pct).toFixed(1)+'%"></i></div><span>'+pct.toFixed(0)+'%</span></div>':'<span class="muted">要介護度を入れると出ます</span>')+'</td>'+
+      '<td class="n">'+(r.warn?'<span class="warn-n">'+r.warn+'</span>':'—')+'</td>'+(yen?'<td class="n">'+num(Math.floor(r.units*yen))+'円</td>':'')+'</tr>';
+  });
+  h+='</tbody><tfoot><tr><td>合計</td><td></td><td class="n">'+num(md.count)+'</td><td class="n">'+num(md.total)+'</td><td></td><td class="n">'+(warnN||'—')+'</td>'+(yen?'<td class="n">'+num(Math.floor(md.total*yen))+'円</td>':'')+'</tr></tfoot></table></div>';
+  h+='<p class="hint">「限度額に対する割合」は、区分支給限度基準額（要介護1 16,765〜要介護5 36,217単位）に対する、この訪問介護だけの割合です。デイサービスなど、ほかのサービスの分は入っていません。要介護度は「訪問の登録」で入れられます。</p>';
+  h+='<p class="hint">「この日だけ休み」「この日だけの訪問」も反映しています。2時間ルールにあたる訪問は、合算前の単位のまま数えています。</p>';
+  return h+'</section>';
+}
+function monthCSV(){
+  var md=monthData(ui.month);
+  var q=function(s){ s=String(s); return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s; };
+  var lines=[['利用者','要介護度','訪問回数','単位数','区分支給限度基準額','割合(%)','要確認'].join(',')];
+  md.rows.forEach(function(r){
+    var care=(state.people[r.name]||{}).care, lim=LIMITS[care]||'';
+    lines.push([q(r.name), care?'要介護'+care:'', r.count, r.units, lim, lim?(r.units/lim*100).toFixed(1):'', r.warn].join(','));
+  });
+  lines.push(['合計','',md.count,md.total,'','',''].join(','));
+  return '﻿'+lines.join('\r\n')+'\r\n';
+}
+
+/* ================= 設定・データタブ ================= */
+function renderData(){
+  var P=state.print, R=state.rates, ro=readOnly?' disabled':'';
+  var counts={}; state.visits.forEach(function(v){ counts[v.shift]=(counts[v.shift]||0)+1; });
+  var where = mode==='cloud'
+    ? (readOnly ? 'このデータは見るだけです（変更する権限がありません）。' : 'データはこのツールに保存されます。スマホとパソコンなど、ほかの端末で開いても同じデータが出ます。リンクを共有して編集できる人も、同じデータを使います。')
+    : (cloud.failed ? 'ツールに保存できないため、この端末のブラウザに保存しています。ときどき「データを書き出す」でバックアップしてください。'
+       : (localOk ? 'データはこの端末のブラウザの中だけに保存されます。ブラウザのデータを消すと消えるので、ときどき「データを書き出す」でバックアップしてください。' : 'このブラウザでは保存ができません。閉じる前に「データを書き出す」でファイルに残してください。'));
+  var h='<section class="data-grid">';
+  h+='<div class="card"><h2 class="h">保存について</h2><p style="margin:0">'+where+'</p>'+(state.updatedAt?'<p class="hint">最終更新：'+esc(new Date(state.updatedAt).toLocaleString('ja-JP'))+'</p>':'')+'</div>';
+  h+='<div class="card"><h2 class="h">シフト（日程表の段と順番）</h2><ol class="shift-list">'+state.shifts.map(function(s,i){
+    return '<li><input value="'+esc(s)+'" data-change="shift-name" data-i="'+i+'" aria-label="シフト'+(i+1)+'の名前" maxlength="20"'+ro+'><span class="cnt">'+(counts[s]||0)+'件</span>'+
+      '<button class="icon-btn" data-act="shift-up" data-i="'+i+'" aria-label="上へ"'+(i===0||readOnly?' disabled':'')+'>↑</button>'+
+      '<button class="icon-btn" data-act="shift-down" data-i="'+i+'" aria-label="下へ"'+(i===state.shifts.length-1||readOnly?' disabled':'')+'>↓</button>'+
+      '<button class="icon-btn" data-act="shift-del" data-i="'+i+'" aria-label="削除"'+ro+'>✕</button></li>';
+  }).join('')+'</ol>'+(readOnly?'':'<button class="btn" data-act="shift-add">＋ シフトを追加</button>')+'<p class="hint">上から順に日程表の段になります。名前を変えると、そのシフトの訪問も一緒に変わります。</p></div>';
+  h+='<div class="card"><h2 class="h">印刷</h2><div class="form-grid">'+
+    '<label class="fld"><span>表のタイトル</span><input data-change="print-opt" data-key="title" value="'+esc(P.title)+'" maxlength="30"'+ro+'></label>'+
+    '<label class="fld"><span>右上に入れる文字（施設名など・任意）</span><input data-change="print-opt" data-key="facility" value="'+esc(P.facility)+'" maxlength="40"'+ro+'></label>'+
+    '<label class="fld"><span>1段の列の数（8〜30）</span><input type="number" min="8" max="30" data-change="print-opt" data-key="cols" value="'+P.cols+'"'+ro+'></label></div><div class="opt-list">'+
+    '<label class="check"><input type="checkbox" data-change="print-opt" data-key="showEmpty"'+(P.showEmpty?' checked':'')+ro+'><span>訪問のないシフトも段を出す</span></label>'+
+    '<label class="check"><input type="checkbox" data-change="print-opt" data-key="showDaily"'+(P.showDaily?' checked':'')+ro+'><span>毎日の訪問にも「毎日」と書く</span></label>'+
+    '<label class="check"><input type="checkbox" data-change="print-opt" data-key="showUnits"'+(P.showUnits?' checked':'')+ro+'><span>単位も印刷する（管理用）</span></label></div></div>';
+  h+='<div class="card"><h2 class="h">単位数</h2><p class="hint" style="margin:0 0 10px">令和6年度改定の単位数が入っています（令和8年6月の改定は処遇改善加算の見直しで、基本の単位数は変わっていません）。次の改定のときはここを直してください。</p><div class="form-grid">'+
+    RATE_FIELDS.map(function(f){ return '<label class="fld"><span>'+f[1]+'</span><input type="number" min="0" inputmode="numeric" data-change="rate" data-key="'+f[0]+'" value="'+R[f[0]]+'"'+ro+'></label>'; }).join('')+
+    '<label class="fld"><span>1単位の単価（円・任意）</span><input type="number" min="0" step="0.01" inputmode="decimal" data-change="yen" value="'+(state.yen==null?'':state.yen)+'" placeholder="例：10.00"'+ro+'></label></div>'+
+    (readOnly?'':'<button class="btn" data-act="rates-reset">令和6年度の単位数に戻す</button>')+'<p class="hint">単価を入れると金額の目安も出ます（地域区分の単価。円未満は切り捨て）。</p></div>';
+  h+='<div class="card"><h2 class="h">データ</h2><div class="row wrap">'+
+    '<button class="btn" data-act="export-json">データを書き出す</button>'+
+    (readOnly?'':'<label class="btn" for="import-file">ファイルから読み込む</label><input type="file" id="import-file" accept=".json,application/json" data-change="import-file" class="sr"><button class="btn" data-act="paste-json">貼り付けて読み込む</button>')+
+    '<button class="btn" data-act="copy-json">データをコピー</button>'+
+    (readOnly?'':'<button class="btn danger" data-act="wipe">全部消す</button>')+'</div>'+
+    '<p class="hint">書き出したファイルは、ほかの端末やこのツールのファイル版で読み込めます。利用者の名前が入っているので、扱いに注意してください。</p></div>';
+  return h+'</section>';
+}
+
+/* ================= モーダル ================= */
+function modalOpen(){ var m=$('#modal'); return m && !m.hidden; }
+function openModal(html, opts){
+  opts=opts||{};
+  var m=$('#modal'), body=$('#m-body');
+  modalState=null;
+  body.innerHTML=html; m.hidden=false; modalState=opts;
+  if (opts.onMount) opts.onMount(body);
+  var box=$('#m-box'); box.scrollTop=0;
+  setTimeout(function(){ box.focus({preventScroll:true}); }, 20);
+}
+function closeModal(silent){
+  var m=$('#modal'); if (!m || m.hidden) return;
+  m.hidden=true; $('#m-body').innerHTML='';
+  var st=modalState; modalState=null;
+  if (!silent && st && st.onClose) st.onClose();
+}
+function confirmBox(msg, okLabel, danger){
+  return new Promise(function(res){
+    openModal('<h2 class="m-title">確認</h2><p>'+esc(msg)+'</p><div class="m-actions"><span class="sp"></span><button type="button" class="btn" id="cf-no">やめる</button><button type="button" class="btn '+(danger?'danger':'primary')+'" id="cf-ok">'+esc(okLabel||'OK')+'</button></div>', {
+      onMount:function(r){ $('#cf-no',r).onclick=function(){ closeModal(true); res(false); }; $('#cf-ok',r).onclick=function(){ closeModal(true); res(true); }; },
+      onClose:function(){ res(false); }
+    });
+  });
+}
+function importText(text){
+  var raw;
+  try { raw=JSON.parse(text); } catch(e){ toast('読み込めませんでした（このツールのデータではないようです）'); return; }
+  if (!raw || typeof raw!=='object' || !Array.isArray(raw.visits)){ toast('読み込めませんでした（訪問のデータが見つかりません）'); return; }
+  var st=normalize(raw);
+  confirmBox('訪問'+st.visits.length+'件のデータに置き換えます。今のデータは消えます。よろしいですか？', '置き換える', true).then(function(ok){
+    if (!ok) return;
+    state=st; commit('読み込みました（訪問'+st.visits.length+'件）');
+  });
+}
+
+/* ================= 操作 ================= */
+var ACTIONS={
+  'day-prev':function(){ ui.date=addDays(ui.date,-1); render(); },
+  'day-next':function(){ ui.date=addDays(ui.date,1); render(); },
+  'day-today':function(){ ui.date=todayStr(); render(); },
+  'day-tomorrow':function(){ ui.date=addDays(todayStr(),1); render(); },
+  'view':function(t){ ui.view=t.dataset.v; render(); },
+  'zoom':function(){ ui.zoom=!ui.zoom; render(); },
+  'print':function(){ if (state) openPrintDialog(); },
+  'extra-add':function(){ openEditor(null,{extraDate:ui.date}); },
+  'day-visit':function(t){ openDayVisit(t.dataset.vid); },
+  'add-visit':function(){ openEditor(null); },
+  'edit-visit':function(t){ var v=state.visits.filter(function(x){ return x.id===t.dataset.vid; })[0]; if (v) openEditor(v); },
+  'vg':function(t){ ui.vg=t.dataset.v; render(); },
+  'c-min':function(t){ var du=$('#c-dur'); if(!du) return; du.value=t.dataset.min; INPUTS.calc(du); },
+  'month-prev':function(){ var p=ui.month.split('-').map(Number); var d=new Date(p[0],p[1]-2,1); ui.month=d.getFullYear()+'-'+pad(d.getMonth()+1); render(); },
+  'month-next':function(){ var p=ui.month.split('-').map(Number); var d=new Date(p[0],p[1],1); ui.month=d.getFullYear()+'-'+pad(d.getMonth()+1); render(); },
+  'month-csv':function(){ saveFile('訪問介護_単位集計_'+ui.month+'.csv', monthCSV(), 'text/csv').then(function(ok){ if(ok) toast('CSVを保存しました'); }); },
+  'shift-up':function(t){ var i=+t.dataset.i, s=state.shifts; if(i<=0) return; var x=s[i-1]; s[i-1]=s[i]; s[i]=x; commit(); },
+  'shift-down':function(t){ var i=+t.dataset.i, s=state.shifts; if(i>=s.length-1) return; var x=s[i+1]; s[i+1]=s[i]; s[i]=x; commit(); },
+  'shift-del':function(t){
+    var i=+t.dataset.i, name=state.shifts[i];
+    var used=state.visits.filter(function(v){ return v.shift===name; }).length;
+    if (used){ toast('「'+name+'」には訪問が'+used+'件あります。先に別のシフトへ移してください'); return; }
+    if (state.shifts.length<=1){ toast('シフトは1つ以上必要です'); return; }
+    state.shifts.splice(i,1); commit('シフトを消しました');
+  },
+  'shift-add':function(){ var n='新しいシフト', k=2; while(state.shifts.indexOf(n)>=0) n='新しいシフト'+(k++); state.shifts.push(n); commit(); },
+  'rates-reset':function(){ state.rates=Object.assign({},RATES_R6); commit('令和6年度の単位数に戻しました'); },
+  'export-json':function(){ saveFile('訪問日程表データ_'+todayStr()+'.json', JSON.stringify(state,null,1), 'application/json').then(function(ok){ if(ok) toast('データを書き出しました'); }); },
+  'copy-json':function(){
+    var txt=JSON.stringify(state);
+    try { navigator.clipboard.writeText(txt).then(function(){ toast('データをコピーしました。別の端末の「貼り付けて読み込む」に貼れます'); }, function(){ toast('コピーできませんでした。「データを書き出す」を使ってください'); }); }
+    catch(e){ toast('コピーできませんでした。「データを書き出す」を使ってください'); }
+  },
+  'paste-json':function(){
+    openModal('<h2 class="m-title">貼り付けて読み込む</h2><p class="m-sub">別の端末で「データをコピー」したものを貼り付けてください。今のデータと置き換わります。</p><textarea class="paste" id="paste-box" aria-label="データ"></textarea><div class="m-actions"><span class="sp"></span><button type="button" class="btn" data-act="modal-close">やめる</button><button type="button" class="btn primary" id="paste-go">読み込む</button></div>', {
+      onMount:function(r){ $('#paste-go',r).onclick=function(){ var t=$('#paste-box',r).value; closeModal(true); importText(t); }; }
+    });
+  },
+  'wipe':function(){ confirmBox('登録した訪問と設定をすべて消します。元に戻せません。よろしいですか？', '全部消す', true).then(function(ok){ if(ok){ state=normalize({}); commit('全部消しました'); } }); },
+  'modal-close':function(){ closeModal(); }
+};
+var CHANGES={
+  'day-date':function(t){ if (t.value){ ui.date=t.value; render(); } },
+  'care':function(t){ var n=t.dataset.name; state.people[n]=Object.assign({}, state.people[n], {care: t.value ? +t.value : null}); commit(); },
+  'print-opt':function(t){
+    var k=t.dataset.key, P=state.print;
+    if (t.type==='checkbox') P[k]=t.checked;
+    else if (k==='cols') P.cols=clamp(Math.round(+t.value||18),8,30);
+    else P[k]=t.value.trim();
+    commit();
+  },
+  'rate':function(t){ var n=Math.round(+t.value); if (!isFinite(n) || n<0){ render(); return; } state.rates[t.dataset.key]=n; commit(); },
+  'yen':function(t){ var n=parseFloat(t.value); state.yen = (isFinite(n) && n>0) ? Math.round(n*100)/100 : null; commit(); },
+  'shift-name':function(t){
+    var i=+t.dataset.i, old=state.shifts[i], nv=t.value.trim();
+    if (!nv || nv===old){ t.value=old; return; }
+    if (state.shifts.indexOf(nv)>=0){ toast('同じ名前のシフトがあります'); t.value=old; return; }
+    state.shifts[i]=nv;
+    state.visits.forEach(function(v){ if (v.shift===old) v.shift=nv; });
+    Object.keys(state.overrides).forEach(function(d){ state.overrides[d].add.forEach(function(v){ if (v.shift===old) v.shift=nv; }); });
+    commit('名前を変えました');
+  },
+  'import-file':function(t){
+    var f=t.files && t.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(){ importText(String(rd.result||'')); t.value=''; };
+    rd.onerror=function(){ toast('ファイルを読めませんでした'); };
+    rd.readAsText(f);
+  }
+};
+var INPUTS={
+  'vq':function(t){ ui.query=t.value; var l=$('#v-list'); if(l) l.innerHTML=visitsListHTML(); },
+  'calc':function(t){
+    var st=$('#c-start'), en=$('#c-end'), du=$('#c-dur');
+    var s=toMin(st.value), e=toMin(en.value), d=+du.value;
+    if (t.id==='c-start' || t.id==='c-dur'){ if (!isNaN(s) && d>0 && d<1440) en.value=hhmm(s+d); }
+    else if (t.id==='c-end'){ if (!isNaN(s) && !isNaN(e)){ var x=e-s; if (x<=0) x+=1440; du.value=x; } }
+    ui.calc={start:st.value, end:en.value, two:$('#c-two').checked, life:Math.max(0,Math.floor(+$('#c-life').value||0)), freq:$('#c-freq').checked};
+    updateCalc();
+  }
+};
+function bind(){
+  document.addEventListener('click', function(e){
+    var tab=e.target.closest('nav.tabs a[data-tab]');
+    if (tab){ e.preventDefault(); go(tab.dataset.tab); return; }
+    var t=e.target.closest('[data-act]');
+    if (!t || !t.dataset.act) return;
+    var fn=ACTIONS[t.dataset.act]; if (!fn) return;
+    if (t.tagName==='A' || t.tagName==='BUTTON') e.preventDefault();
+    fn(t, e);
+  });
+  document.addEventListener('change', function(e){ var t=e.target.closest('[data-change]'); if (t && CHANGES[t.dataset.change]) CHANGES[t.dataset.change](t, e); });
+  document.addEventListener('input', function(e){ var t=e.target.closest('[data-input]'); if (t && INPUTS[t.dataset.input]) INPUTS[t.dataset.input](t, e); });
+  document.addEventListener('keydown', function(e){
+    if (e.key==='Escape' && modalOpen()){ closeModal(); return; }
+    if ((e.key==='Enter' || e.key===' ') && e.target.matches && e.target.matches('li[data-act]')){ e.preventDefault(); e.target.click(); }
+  });
+  window.addEventListener('hashchange', function(){ var h=(location.hash||'').slice(1); if (TABS.indexOf(h)>=0 && h!==ui.tab){ ui.tab=h; render(); } });
+  window.addEventListener('resize', debounce(function(){ if (ui.tab==='day') fitSheet(); }, 120));
+}
+function go(tab){
+  if (TABS.indexOf(tab)<0) return;
+  ui.tab=tab;
+  try { if (location.hash!=='#'+tab) history.replaceState(null,'','#'+tab); } catch(e){ try { location.hash=tab; } catch(_){} }
+  render();
+  window.scrollTo(0,0);
+}
+
+/* ================= 起動 ================= */
+function boot(){
+  var st=document.createElement('style'); st.id='sheet-css'; st.textContent=SHEET_CSS; document.head.appendChild(st);
+  ui.date=addDays(todayStr(),1);
+  ui.month=todayStr().slice(0,7);
+  var h=(location.hash||'').slice(1); if (TABS.indexOf(h)>=0) ui.tab=h;
+  bind();
+  if (window.claude && typeof window.claude.use==='function') startCloud(); else startLocal(false);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if (ui.tab==='day') fitSheet(); });
+}
+window.HoumonTest={calc:calc, bandOf:bandOf, normalize:normalize, checksFor:function(d){ return checksFor(d); }, visitsOn:function(d){ return visitsOn(d); }, buildPrintDoc:function(d){ return buildPrintDoc(d); }, monthData:function(m){ return monthData(m); }, getState:function(){ return state; }};
+if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
+</body>
+</html>
